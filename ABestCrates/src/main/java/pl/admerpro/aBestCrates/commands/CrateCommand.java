@@ -22,6 +22,7 @@ import pl.admerpro.aBestCrates.manager.KeyManager;
 import pl.admerpro.aBestCrates.model.Crate;
 import pl.admerpro.aBestCrates.service.MessageService;
 import pl.admerpro.aBestCrates.service.OpeningService;
+import pl.admerpro.aBestCrates.util.ColorUtil;
 
 public class CrateCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = List.of(
@@ -309,7 +310,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             "&f/abestcrates removekeys <player> <crate> <amount>",
             "&f/abestcrates forceopen <player> <crate>",
             "&f/abestcrates reload"
-        ).forEach(line -> sender.sendMessage(pl.admerpro.aBestCrates.util.ColorUtil.color(line)));
+        ).forEach(line -> sender.sendMessage(ColorUtil.component(line)));
     }
 
     private boolean has(CommandSender sender, String permission) {

@@ -27,7 +27,6 @@ import pl.admerpro.aBestCrates.manager.KeyManager;
 import pl.admerpro.aBestCrates.model.Crate;
 import pl.admerpro.aBestCrates.model.Reward;
 import pl.admerpro.aBestCrates.service.MessageService;
-import pl.admerpro.aBestCrates.service.OpeningService;
 import pl.admerpro.aBestCrates.util.ColorUtil;
 import pl.admerpro.aBestCrates.util.ItemBuilder;
 
@@ -46,7 +45,6 @@ public class GuiManager implements Listener {
     private final CrateManager crateManager;
     private final KeyManager keyManager;
     private final CrateLocationManager crateLocationManager;
-    private final OpeningService openingService;
     private final ChatInputManager chatInputManager;
     private final MessageService messageService;
     private final NamespacedKey crateTag;
@@ -70,12 +68,11 @@ public class GuiManager implements Listener {
     );
 
     public GuiManager(JavaPlugin plugin, CrateManager crateManager, KeyManager keyManager, CrateLocationManager crateLocationManager,
-                      OpeningService openingService, ChatInputManager chatInputManager, MessageService messageService) {
+                      ChatInputManager chatInputManager, MessageService messageService) {
         this.plugin = plugin;
         this.crateManager = crateManager;
         this.keyManager = keyManager;
         this.crateLocationManager = crateLocationManager;
-        this.openingService = openingService;
         this.chatInputManager = chatInputManager;
         this.messageService = messageService;
         this.crateTag = new NamespacedKey(plugin, "gui_crate");
@@ -84,7 +81,7 @@ public class GuiManager implements Listener {
 
     public void openMain(Player player) {
         MenuHolder holder = new MenuHolder(MenuType.MAIN, null);
-        Inventory inventory = Bukkit.createInventory(holder, 27, ColorUtil.color("&5ABestCrates"));
+        Inventory inventory = Bukkit.createInventory(holder, 27, ColorUtil.component("&5ABestCrates"));
         holder.setInventory(inventory);
 
         inventory.setItem(10, new ItemBuilder(Material.EMERALD).name("&aCreate Crate").lore(List.of("&7Create a new crate draft.")).build());
@@ -98,7 +95,7 @@ public class GuiManager implements Listener {
 
     public void openManage(Player player) {
         MenuHolder holder = new MenuHolder(MenuType.MANAGE, null);
-        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.color("&5Manage Crates"));
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Manage Crates"));
         holder.setInventory(inventory);
 
         int slot = 0;
@@ -124,7 +121,7 @@ public class GuiManager implements Listener {
 
     public void openEdit(Player player, Crate crate) {
         MenuHolder holder = new MenuHolder(MenuType.EDIT, crate.getId());
-        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.color(crate.getDisplayName()));
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component(crate.getDisplayName()));
         holder.setInventory(inventory);
 
         inventory.setItem(10, new ItemBuilder(Material.NAME_TAG).name("&dDisplay Name").lore(List.of("&f" + crate.getDisplayName(), "&7Click to edit in chat.")).build());
@@ -154,7 +151,7 @@ public class GuiManager implements Listener {
 
     public void openRewards(Player player, Crate crate) {
         MenuHolder holder = new MenuHolder(MenuType.REWARDS, crate.getId());
-        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.color("&5Rewards: &f" + crate.getId()));
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Rewards: &f" + crate.getId()));
         holder.setInventory(inventory);
 
         int slot = 0;
@@ -172,7 +169,7 @@ public class GuiManager implements Listener {
 
     public void openRewardEdit(Player player, Crate crate, Reward reward) {
         MenuHolder holder = new MenuHolder(MenuType.REWARD_EDIT, crate.getId(), reward.getId());
-        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.color("&5Reward: &f" + reward.getId()));
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Reward: &f" + reward.getId()));
         holder.setInventory(inventory);
 
         inventory.setItem(SLOT_REWARD_NAME, new ItemBuilder(Material.NAME_TAG).name("&dCrate Item Name").lore(List.of(
@@ -209,7 +206,7 @@ public class GuiManager implements Listener {
 
     public void openPreview(Player player, Crate crate, boolean returnToSettings) {
         MenuHolder holder = new MenuHolder(MenuType.PREVIEW, crate.getId(), returnToSettings ? "settings" : null);
-        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.color("&5Preview: &f" + ColorUtil.removeColor(crate.getDisplayName())));
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Preview: &f" + ColorUtil.removeColor(crate.getDisplayName())));
         holder.setInventory(inventory);
 
         int slot = 0;
@@ -593,7 +590,7 @@ public class GuiManager implements Listener {
 
         ItemMeta meta = displayItem.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(ColorUtil.color(name));
+            meta.displayName(ColorUtil.component(name));
             displayItem.setItemMeta(meta);
         }
         reward.setDisplayItem(displayItem);
@@ -658,10 +655,14 @@ public class GuiManager implements Listener {
 
     private String rewardDisplayName(Reward reward) {
         ItemStack displayItem = reward.getDisplayItem();
-        if (displayItem == null || !displayItem.hasItemMeta() || !displayItem.getItemMeta().hasDisplayName()) {
+        if (displayItem == null || !displayItem.hasItemMeta()) {
             return "&7Not set";
         }
-        return displayItem.getItemMeta().getDisplayName();
+        ItemMeta meta = displayItem.getItemMeta();
+        if (meta == null || !meta.hasDisplayName()) {
+            return "&7Not set";
+        }
+        return ColorUtil.legacy(meta.displayName());
     }
 
     private List<String> hologramLore(Crate crate) {

@@ -5,10 +5,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.logging.Level;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.AnimationType;
 import pl.admerpro.aBestCrates.model.Crate;
@@ -91,7 +91,7 @@ public class CrateStorage {
         try {
             configuration.save(file);
         } catch (IOException exception) {
-            plugin.getLogger().severe("Could not save crates.yml: " + exception.getMessage());
+            plugin.getLogger().log(Level.SEVERE, "Could not save crates.yml.", exception);
         }
     }
 

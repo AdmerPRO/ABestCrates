@@ -12,6 +12,7 @@ import pl.admerpro.aBestCrates.gui.GuiManager;
 import pl.admerpro.aBestCrates.manager.CrateLocationManager;
 import pl.admerpro.aBestCrates.model.Crate;
 import pl.admerpro.aBestCrates.service.OpeningService;
+import pl.admerpro.aBestCrates.util.ColorUtil;
 
 public class CrateListener implements Listener {
     private final CrateLocationManager crateLocationManager;
@@ -57,7 +58,7 @@ public class CrateListener implements Listener {
         }
 
         event.setCancelled(true);
-        event.getPlayer().sendMessage(pl.admerpro.aBestCrates.util.ColorUtil.color("&cThis crate is protected."));
+        event.getPlayer().sendMessage(ColorUtil.component("&cThis crate is protected."));
     }
 
     @EventHandler

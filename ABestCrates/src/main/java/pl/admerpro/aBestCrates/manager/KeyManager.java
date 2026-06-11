@@ -3,10 +3,12 @@ package pl.admerpro.aBestCrates.manager;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -19,6 +21,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.Crate;
@@ -83,7 +86,7 @@ public class KeyManager {
         try {
             configuration.save(file);
         } catch (IOException exception) {
-            plugin.getLogger().severe("Could not save virtual-keys.yml: " + exception.getMessage());
+            plugin.getLogger().log(Level.SEVERE, "Could not save virtual-keys.yml.", exception);
         }
     }
 
@@ -95,14 +98,16 @@ public class KeyManager {
             : templateItem.asQuantity(Math.max(1, amount));
         ItemMeta meta = itemStack.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(ColorUtil.color(applyCratePlaceholders(definition.getDisplayName(), crate)));
+            meta.displayName(ColorUtil.component(applyCratePlaceholders(definition.getDisplayName(), crate)));
             if (templateItem == null) {
-                meta.setLore(ColorUtil.color(definition.getLore().stream()
+                meta.lore(ColorUtil.components(definition.getLore().stream()
                     .map(line -> applyCratePlaceholders(line, crate))
                     .toList()));
             }
             if (templateItem == null && definition.getCustomModelData() != null) {
-                meta.setCustomModelData(definition.getCustomModelData());
+                CustomModelDataComponent customModelData = meta.getCustomModelDataComponent();
+                customModelData.setFloats(List.of(definition.getCustomModelData().floatValue()));
+                meta.setCustomModelDataComponent(customModelData);
             }
             meta.getPersistentDataContainer().set(crateKey, PersistentDataType.STRING, crate.getId());
             if (definition.isGlow()) {
@@ -142,7 +147,7 @@ public class KeyManager {
     public int countPhysicalKeys(Player player, Crate crate) {
         int amount = 0;
         for (ItemStack itemStack : player.getInventory().getStorageContents()) {
-            if (isPhysicalKeyForCrate(itemStack, crate)) {
+            if (itemStack != null && isPhysicalKeyForCrate(itemStack, crate)) {
                 amount += itemStack.getAmount();
             }
         }
@@ -162,7 +167,7 @@ public class KeyManager {
         int remaining = amount;
         for (int index = 0; index < contents.length && remaining > 0; index++) {
             ItemStack itemStack = contents[index];
-            if (!isPhysicalKeyForCrate(itemStack, crate)) {
+            if (itemStack == null || !isPhysicalKeyForCrate(itemStack, crate)) {
                 continue;
             }
 
@@ -232,9 +237,9 @@ public class KeyManager {
     }
 
     public void removeVirtualCrate(String crateId) {
-        String crateKey = key(crateId);
+        String normalizedCrate = key(crateId);
         for (Map<String, Integer> playerKeys : virtualKeys.values()) {
-            playerKeys.remove(crateKey);
+            playerKeys.remove(normalizedCrate);
         }
         save();
     }
@@ -254,6 +259,9 @@ public class KeyManager {
         ItemStack itemStack = slot == EquipmentSlot.HAND
             ? player.getInventory().getItemInMainHand()
             : player.getInventory().getItemInOffHand();
+        if (itemStack == null) {
+            return false;
+        }
 
         Optional<String> keyCrate = getCrateIdFromKey(itemStack);
         if (keyCrate.isEmpty() || !keyCrate.get().equalsIgnoreCase(crate.getId())) {

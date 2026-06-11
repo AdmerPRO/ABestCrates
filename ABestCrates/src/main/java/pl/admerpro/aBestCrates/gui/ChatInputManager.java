@@ -23,8 +23,8 @@ public class ChatInputManager implements Listener {
     public void request(Player player, String prompt, Consumer<String> callback, Runnable cancelCallback) {
         pendingInputs.put(player.getUniqueId(), new PendingInput(callback, cancelCallback));
         player.closeInventory();
-        player.sendMessage(ColorUtil.color(prompt));
-        player.sendMessage(ColorUtil.color("&7Type &ccancel &7to cancel."));
+        player.sendMessage(ColorUtil.component(prompt));
+        player.sendMessage(ColorUtil.component("&7Type &ccancel &7to cancel."));
     }
 
     @EventHandler
@@ -39,7 +39,7 @@ public class ChatInputManager implements Listener {
         String message = event.getMessage();
         if (message.equalsIgnoreCase("cancel")) {
             Bukkit.getScheduler().runTask(plugin, () -> {
-                event.getPlayer().sendMessage(ColorUtil.color("&cCancelled."));
+                event.getPlayer().sendMessage(ColorUtil.component("&cCancelled."));
                 pendingInput.cancelCallback().run();
             });
             return;

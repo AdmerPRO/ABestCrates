@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -66,7 +67,7 @@ public class CrateLocationManager {
         try {
             configuration.save(file);
         } catch (IOException exception) {
-            plugin.getLogger().severe("Could not save locations.yml: " + exception.getMessage());
+            plugin.getLogger().log(Level.SEVERE, "Could not save locations.yml.", exception);
         }
     }
 
@@ -182,7 +183,7 @@ public class CrateLocationManager {
             armorStand.setGravity(false);
             armorStand.setPersistent(false);
             armorStand.setCustomNameVisible(true);
-            armorStand.setCustomName(ColorUtil.color(lines.get(index)));
+            armorStand.customName(ColorUtil.component(lines.get(index)));
             armorStand.getPersistentDataContainer().set(hologramKey, PersistentDataType.BYTE, (byte) 1);
         }
     }

@@ -18,7 +18,8 @@ import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import pl.admerpro.aBestCrates.manager.CrateManager;
+import pl.admerpro.aBestCrates.gui.MenuHolder;
+import pl.admerpro.aBestCrates.gui.MenuType;
 import pl.admerpro.aBestCrates.manager.KeyManager;
 import pl.admerpro.aBestCrates.model.AnimationType;
 import pl.admerpro.aBestCrates.model.Crate;
@@ -27,14 +28,12 @@ import pl.admerpro.aBestCrates.util.ColorUtil;
 
 public class OpeningService {
     private final JavaPlugin plugin;
-    private final CrateManager crateManager;
     private final KeyManager keyManager;
     private final MessageService messageService;
     private final Random random = new Random();
 
-    public OpeningService(JavaPlugin plugin, CrateManager crateManager, KeyManager keyManager, MessageService messageService) {
+    public OpeningService(JavaPlugin plugin, KeyManager keyManager, MessageService messageService) {
         this.plugin = plugin;
-        this.crateManager = crateManager;
         this.keyManager = keyManager;
         this.messageService = messageService;
     }
@@ -57,7 +56,7 @@ public class OpeningService {
         int virtualKeys = keyManager.getVirtualKeys(player.getUniqueId(), crate.getId());
         int keyAmount = physicalKeys + virtualKeys;
         if (keyAmount <= 0) {
-            player.sendMessage(ColorUtil.color(applyPlaceholders(crate.getNoKeyMessage(), player, crate, null)));
+            player.sendMessage(ColorUtil.component(applyPlaceholders(crate.getNoKeyMessage(), player, crate, null)));
             return;
         }
 
@@ -106,7 +105,7 @@ public class OpeningService {
         }
 
         if (!forced && !keyManager.consumeAnyKey(player, crate)) {
-            player.sendMessage(ColorUtil.color(applyPlaceholders(crate.getNoKeyMessage(), player, crate, null)));
+            player.sendMessage(ColorUtil.component(applyPlaceholders(crate.getNoKeyMessage(), player, crate, null)));
             return;
         }
 
@@ -145,7 +144,9 @@ public class OpeningService {
     }
 
     private void playAnimation(Player player, Crate crate, Reward reward) {
-        Inventory inventory = Bukkit.createInventory(null, 27, ColorUtil.color("&5Opening: &f" + ColorUtil.removeColor(crate.getDisplayName())));
+        MenuHolder holder = new MenuHolder(MenuType.PREVIEW, crate.getId());
+        Inventory inventory = Bukkit.createInventory(holder, 27, ColorUtil.component("&5Opening: &f" + ColorUtil.removeColor(crate.getDisplayName())));
+        holder.setInventory(inventory);
         ItemStack centerMarker = centerMarker();
         inventory.setItem(4, centerMarker);
         inventory.setItem(22, centerMarker);
@@ -267,7 +268,7 @@ public class OpeningService {
     }
 
     private void broadcastReward(Player player, Crate crate, Reward reward) {
-        Bukkit.broadcastMessage(ColorUtil.color(plugin.getConfig().getString("messages.reward-broadcast", "")
+        Bukkit.broadcast(ColorUtil.component(plugin.getConfig().getString("messages.reward-broadcast", "")
             .replace("%player%", player.getName())
             .replace("%crate%", crate.getId())
             .replace("%crate_displayname%", crate.getDisplayName())
@@ -287,7 +288,7 @@ public class OpeningService {
     }
 
     private String applyPlaceholders(String text, Player player, Crate crate, Reward reward) {
-        String result = text
+        String result = (text == null ? "" : text)
             .replace("%player%", player.getName())
             .replace("%crate%", crate.getId())
             .replace("%crate_displayname%", crate.getDisplayName());
@@ -299,8 +300,11 @@ public class OpeningService {
 
     private String rewardName(Reward reward) {
         ItemStack displayItem = reward.getDisplayItem();
-        if (displayItem != null && displayItem.hasItemMeta() && displayItem.getItemMeta().hasDisplayName()) {
-            return displayItem.getItemMeta().getDisplayName();
+        if (displayItem != null && displayItem.hasItemMeta()) {
+            ItemMeta meta = displayItem.getItemMeta();
+            if (meta != null && meta.hasDisplayName()) {
+                return ColorUtil.legacy(meta.displayName());
+            }
         }
         if (displayItem != null) {
             return displayItem.getType().name();
@@ -317,7 +321,7 @@ public class OpeningService {
         ItemStack itemStack = new ItemStack(Material.LIME_BANNER);
         ItemMeta meta = itemStack.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(ColorUtil.color("&a&lWIN"));
+            meta.displayName(ColorUtil.component("&a&lWIN"));
             itemStack.setItemMeta(meta);
         }
         return itemStack;

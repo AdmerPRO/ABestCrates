@@ -2,6 +2,7 @@ package pl.admerpro.aBestCrates.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
@@ -22,23 +23,25 @@ public class ItemBuilder {
 
     public ItemBuilder name(String name) {
         if (itemMeta != null) {
-            itemMeta.setDisplayName(ColorUtil.color(name));
+            itemMeta.displayName(ColorUtil.component(name));
         }
         return this;
     }
 
     public ItemBuilder lore(List<String> lore) {
         if (itemMeta != null) {
-            itemMeta.setLore(ColorUtil.color(lore == null ? new ArrayList<>() : lore));
+            itemMeta.lore(ColorUtil.components(lore == null ? new ArrayList<>() : lore));
         }
         return this;
     }
 
     public ItemBuilder addLore(String line) {
         if (itemMeta != null) {
-            List<String> lore = itemMeta.hasLore() ? itemMeta.getLore() : new ArrayList<>();
-            lore.add(ColorUtil.color(line));
-            itemMeta.setLore(lore);
+            List<Component> lore = itemMeta.hasLore() && itemMeta.lore() != null
+                ? new ArrayList<>(itemMeta.lore())
+                : new ArrayList<>();
+            lore.add(ColorUtil.component(line));
+            itemMeta.lore(lore);
         }
         return this;
     }

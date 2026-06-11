@@ -27,6 +27,6 @@ public class MessageService {
         for (Map.Entry<String, String> entry : placeholders.entrySet()) {
             message = message.replace(entry.getKey(), entry.getValue());
         }
-        sender.sendMessage(ColorUtil.color(message));
+        sender.sendMessage(ColorUtil.component(message));
     }
 }

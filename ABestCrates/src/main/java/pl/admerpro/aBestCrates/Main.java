@@ -28,9 +28,9 @@ public final class Main extends JavaPlugin {
         crateManager = new CrateManager(this);
         keyManager = new KeyManager(this, crateManager);
         crateLocationManager = new CrateLocationManager(this, crateManager);
-        openingService = new OpeningService(this, crateManager, keyManager, messageService);
+        openingService = new OpeningService(this, keyManager, messageService);
         chatInputManager = new ChatInputManager(this);
-        guiManager = new GuiManager(this, crateManager, keyManager, crateLocationManager, openingService, chatInputManager, messageService);
+        guiManager = new GuiManager(this, crateManager, keyManager, crateLocationManager, chatInputManager, messageService);
 
         crateManager.load();
         keyManager.load();
