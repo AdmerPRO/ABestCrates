@@ -64,6 +64,23 @@ public class CrateManager {
         return removed;
     }
 
+    public Optional<Crate> renameCrate(String currentId, String newId) {
+        String normalizedNewId = Crate.normalizeId(newId);
+        if (normalizedNewId.isBlank() || exists(normalizedNewId)) {
+            return Optional.empty();
+        }
+
+        Crate crate = crates.remove(key(currentId));
+        if (crate == null) {
+            return Optional.empty();
+        }
+
+        crate.setId(normalizedNewId);
+        crates.put(key(crate.getId()), crate);
+        save();
+        return Optional.of(crate);
+    }
+
     public String nextGeneratedName() {
         int index = 1;
         while (exists("Crate" + index)) {

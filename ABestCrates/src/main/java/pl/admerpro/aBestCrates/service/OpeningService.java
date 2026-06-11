@@ -1,5 +1,8 @@
 package pl.admerpro.aBestCrates.service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.bukkit.Bukkit;
@@ -39,6 +42,53 @@ public class OpeningService {
         open(player, crate, true);
     }
 
+    public void openAllPhysicalKeys(Player player, Crate crate) {
+        if (!player.hasPermission("abestcrates.use")) {
+            messageService.send(player, "no-permission");
+            return;
+        }
+
+        int keyAmount = keyManager.countPhysicalKeys(player, crate);
+        if (keyAmount <= 0) {
+            player.sendMessage(ColorUtil.color(applyPlaceholders(crate.getNoKeyMessage(), player, crate, null)));
+            return;
+        }
+
+        List<Reward> rewards = new ArrayList<>();
+        for (int index = 0; index < keyAmount; index++) {
+            Reward reward = crate.rollReward(random).orElse(null);
+            if (reward == null) {
+                messageService.send(player, "crate-empty", Map.of("%crate%", crate.getId()));
+                return;
+            }
+            rewards.add(reward);
+        }
+
+        if (!hasSpaceForRewardsAfterKeys(player, crate, keyAmount, rewards)) {
+            messageService.send(player, "not-enough-inventory-space", Map.of("%amount%", String.valueOf(keyAmount)));
+            return;
+        }
+
+        keyManager.consumePhysicalKeys(player, crate, keyAmount);
+        for (Reward reward : rewards) {
+            giveItemReward(player, reward);
+            executeCommands(player, crate, reward);
+            if (reward.isFireworks()) {
+                spawnFirework(player);
+            }
+            if (reward.isBroadcast()) {
+                broadcastReward(player, crate, reward);
+            }
+        }
+
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.25F);
+        messageService.send(player, "bulk-opened", Map.of(
+            "%amount%", String.valueOf(keyAmount),
+            "%crate%", crate.getId(),
+            "%crate_displayname%", crate.getDisplayName()
+        ));
+    }
+
     private void open(Player player, Crate crate, boolean forced) {
         if (!forced && !player.hasPermission("abestcrates.use")) {
             messageService.send(player, "no-permission");
@@ -71,11 +121,7 @@ public class OpeningService {
         ));
 
         if (reward.isBroadcast()) {
-            Bukkit.broadcastMessage(ColorUtil.color(plugin.getConfig().getString("messages.reward-broadcast", "")
-                .replace("%player%", player.getName())
-                .replace("%crate%", crate.getId())
-                .replace("%crate_displayname%", crate.getDisplayName())
-                .replace("%reward%", rewardName(reward))));
+            broadcastReward(player, crate, reward);
         }
     }
 
@@ -93,6 +139,69 @@ public class OpeningService {
         for (String command : reward.getCommands()) {
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), applyPlaceholders(command, player, crate, reward));
         }
+    }
+
+    private boolean hasSpaceForRewardsAfterKeys(Player player, Crate crate, int keyAmount, List<Reward> rewards) {
+        ItemStack[] contents = Arrays.stream(player.getInventory().getStorageContents())
+            .map(itemStack -> itemStack == null ? null : itemStack.clone())
+            .toArray(ItemStack[]::new);
+
+        consumeKeysInCopy(contents, crate, keyAmount);
+        for (Reward reward : rewards) {
+            ItemStack itemReward = reward.getItemReward();
+            if (itemReward != null && !canFit(contents, itemReward.clone())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void consumeKeysInCopy(ItemStack[] contents, Crate crate, int keyAmount) {
+        int remaining = keyAmount;
+        for (int index = 0; index < contents.length && remaining > 0; index++) {
+            ItemStack itemStack = contents[index];
+            if (!keyManager.isPhysicalKeyForCrate(itemStack, crate)) {
+                continue;
+            }
+
+            int removed = Math.min(remaining, itemStack.getAmount());
+            remaining -= removed;
+            itemStack.setAmount(itemStack.getAmount() - removed);
+            if (itemStack.getAmount() <= 0) {
+                contents[index] = null;
+            }
+        }
+    }
+
+    private boolean canFit(ItemStack[] contents, ItemStack itemStack) {
+        int remaining = itemStack.getAmount();
+        for (int index = 0; index < contents.length; index++) {
+            ItemStack content = contents[index];
+            if (content == null || content.getType().isAir()) {
+                int moved = Math.min(remaining, itemStack.getMaxStackSize());
+                ItemStack copy = itemStack.clone();
+                copy.setAmount(moved);
+                contents[index] = copy;
+                remaining -= moved;
+            } else if (content.isSimilar(itemStack) && content.getAmount() < content.getMaxStackSize()) {
+                int moved = Math.min(remaining, content.getMaxStackSize() - content.getAmount());
+                content.setAmount(content.getAmount() + moved);
+                remaining -= moved;
+            }
+
+            if (remaining <= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void broadcastReward(Player player, Crate crate, Reward reward) {
+        Bukkit.broadcastMessage(ColorUtil.color(plugin.getConfig().getString("messages.reward-broadcast", "")
+            .replace("%player%", player.getName())
+            .replace("%crate%", crate.getId())
+            .replace("%crate_displayname%", crate.getDisplayName())
+            .replace("%reward%", rewardName(reward))));
     }
 
     private void spawnFirework(Player player) {

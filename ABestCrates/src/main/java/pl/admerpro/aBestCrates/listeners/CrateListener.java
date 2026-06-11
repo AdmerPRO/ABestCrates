@@ -23,7 +23,7 @@ public class CrateListener implements Listener {
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) {
+        if (event.getClickedBlock() == null) {
             return;
         }
 
@@ -33,11 +33,17 @@ public class CrateListener implements Listener {
         }
 
         event.setCancelled(true);
-        if (event.getPlayer().isSneaking()) {
+        if (event.getAction() == Action.LEFT_CLICK_BLOCK && event.getPlayer().isSneaking()) {
+            openingService.openAllPhysicalKeys(event.getPlayer(), crate);
+            return;
+        }
+        if (event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getPlayer().isSneaking()) {
             guiManager.openPreview(event.getPlayer(), crate);
             return;
         }
-        openingService.open(event.getPlayer(), crate);
+        if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+            openingService.open(event.getPlayer(), crate);
+        }
     }
 
     @EventHandler
@@ -47,10 +53,7 @@ public class CrateListener implements Listener {
             return;
         }
 
-        if (!event.getPlayer().hasPermission("abestcrates.admin")) {
-            event.setCancelled(true);
-            return;
-        }
-        crateLocationManager.removeCrateAt(event.getBlock());
+        event.setCancelled(true);
+        event.getPlayer().sendMessage(pl.admerpro.aBestCrates.util.ColorUtil.color("&cThis crate is protected."));
     }
 }

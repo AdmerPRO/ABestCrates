@@ -7,10 +7,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -134,6 +134,37 @@ public class KeyManager {
         return true;
     }
 
+    public int countPhysicalKeys(Player player, Crate crate) {
+        int amount = 0;
+        for (ItemStack itemStack : player.getInventory().getStorageContents()) {
+            if (isPhysicalKeyForCrate(itemStack, crate)) {
+                amount += itemStack.getAmount();
+            }
+        }
+        return amount;
+    }
+
+    public void consumePhysicalKeys(Player player, Crate crate, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+
+        ItemStack[] contents = player.getInventory().getStorageContents();
+        int remaining = amount;
+        for (int index = 0; index < contents.length && remaining > 0; index++) {
+            ItemStack itemStack = contents[index];
+            if (!isPhysicalKeyForCrate(itemStack, crate)) {
+                continue;
+            }
+
+            int removed = Math.min(remaining, itemStack.getAmount());
+            remaining -= removed;
+            int newAmount = itemStack.getAmount() - removed;
+            contents[index] = newAmount <= 0 ? null : itemStack.asQuantity(newAmount);
+        }
+        player.getInventory().setStorageContents(contents);
+    }
+
     public int getVirtualKeys(UUID uuid, String crateId) {
         return virtualKeys.getOrDefault(uuid, Map.of()).getOrDefault(key(crateId), 0);
     }
@@ -164,6 +195,35 @@ public class KeyManager {
             .isPresent();
     }
 
+    public boolean isPhysicalKeyForCrate(ItemStack itemStack, Crate crate) {
+        return getCrateIdFromKey(itemStack)
+            .map(crateId -> crateId.equalsIgnoreCase(crate.getId()))
+            .orElse(false);
+    }
+
+    public void renameVirtualCrate(String oldId, String newId) {
+        String oldKey = key(oldId);
+        String newKey = key(newId);
+        for (Map<String, Integer> playerKeys : virtualKeys.values()) {
+            Integer amount = playerKeys.remove(oldKey);
+            if (amount != null) {
+                playerKeys.merge(newKey, amount, Integer::sum);
+            }
+        }
+        save();
+    }
+
+    public void renamePhysicalKeysForOnlinePlayers(String oldId, String newId) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            ItemStack[] contents = player.getInventory().getStorageContents();
+            for (ItemStack itemStack : contents) {
+                updatePhysicalKeyId(itemStack, oldId, newId);
+            }
+            player.getInventory().setStorageContents(contents);
+            updatePhysicalKeyId(player.getInventory().getItemInOffHand(), oldId, newId);
+        }
+    }
+
     private boolean consumePhysicalKey(Player player, Crate crate, EquipmentSlot slot) {
         ItemStack itemStack = slot == EquipmentSlot.HAND
             ? player.getInventory().getItemInMainHand()
@@ -185,6 +245,25 @@ public class KeyManager {
             itemStack.setAmount(amount - 1);
         }
         return true;
+    }
+
+    private void updatePhysicalKeyId(ItemStack itemStack, String oldId, String newId) {
+        if (itemStack == null || !itemStack.hasItemMeta()) {
+            return;
+        }
+
+        ItemMeta meta = itemStack.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+
+        String crateId = meta.getPersistentDataContainer().get(crateKey, PersistentDataType.STRING);
+        if (crateId == null || !crateId.equalsIgnoreCase(oldId)) {
+            return;
+        }
+
+        meta.getPersistentDataContainer().set(crateKey, PersistentDataType.STRING, newId);
+        itemStack.setItemMeta(meta);
     }
 
     private String applyCratePlaceholders(String text, Crate crate) {

@@ -32,12 +32,13 @@ import pl.admerpro.aBestCrates.util.ColorUtil;
 import pl.admerpro.aBestCrates.util.ItemBuilder;
 
 public class GuiManager implements Listener {
+    private static final int SLOT_CRATE_REAL_NAME = 11;
     private static final int SLOT_CRATE_BLOCK = 12;
     private static final int SLOT_REWARD_NAME = 10;
     private static final int SLOT_REWARD_DISPLAY_ITEM = 12;
     private static final int SLOT_REWARD_DROP_ITEM = 14;
     private static final int SLOT_REWARD_REAL_CHANCE = 16;
-    private static final int SLOT_REWARD_DISPLAY_CHANCE = 18;
+    private static final int SLOT_REWARD_DISPLAY_CHANCE = 22;
 
     private final JavaPlugin plugin;
     private final CrateManager crateManager;
@@ -117,6 +118,11 @@ public class GuiManager implements Listener {
         holder.setInventory(inventory);
 
         inventory.setItem(10, new ItemBuilder(Material.NAME_TAG).name("&dDisplay Name").lore(List.of("&f" + crate.getDisplayName(), "&7Click to edit in chat.")).build());
+        inventory.setItem(SLOT_CRATE_REAL_NAME, new ItemBuilder(Material.PAPER).name("&bReal Name").lore(List.of(
+            "&f" + crate.getId(),
+            "&7This is the technical crate id.",
+            "&7Click to rename it."
+        )).build());
         inventory.setItem(SLOT_CRATE_BLOCK, new ItemBuilder(crate.getBlockMaterial()).name("&6Block Type").lore(List.of(
             "&f" + crate.getBlockMaterial().name(),
             "&7Left click: set from hand/cursor.",
@@ -157,7 +163,7 @@ public class GuiManager implements Listener {
         Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.color("&5Reward: &f" + reward.getId()));
         holder.setInventory(inventory);
 
-        inventory.setItem(SLOT_REWARD_NAME, new ItemBuilder(Material.NAME_TAG).name("&dNazwa itemku w skrzyni").lore(List.of(
+        inventory.setItem(SLOT_REWARD_NAME, new ItemBuilder(Material.NAME_TAG).name("&dCrate Item Name").lore(List.of(
             "&f" + rewardDisplayName(reward),
             "&7Click to edit in chat."
         )).build());
@@ -166,7 +172,7 @@ public class GuiManager implements Listener {
             "&7Left click: set from hand/cursor.",
             "&7Drag an item here to set it."
         )));
-        inventory.setItem(SLOT_REWARD_DROP_ITEM, rewardEditorItem(reward.getItemReward(), Material.CHEST_MINECART, "&aCo dropi", List.of(
+        inventory.setItem(SLOT_REWARD_DROP_ITEM, rewardEditorItem(reward.getItemReward(), Material.CHEST_MINECART, "&aDropped Item", List.of(
             "&7This item is given to player.",
             "&7Left click: set from hand/cursor.",
             "&7Drag an item here to set it."
@@ -314,11 +320,12 @@ public class GuiManager implements Listener {
         int slot = event.getRawSlot();
 
         switch (slot) {
-            case 10 -> requestChat(player, "&eWpisz nowy display name:", input -> {
+            case 10 -> requestChat(player, "&eEnter the new display name:", input -> {
                 crate.setDisplayName(input);
                 crateManager.save();
                 openEdit(player, crate);
             });
+            case SLOT_CRATE_REAL_NAME -> requestChat(player, "&eEnter the new real crate name:", input -> renameCrate(player, crate, input));
             case SLOT_CRATE_BLOCK -> {
                 if (event.isRightClick()) {
                     crate.setBlockMaterial(nextBlock(crate.getBlockMaterial()));
@@ -329,7 +336,7 @@ public class GuiManager implements Listener {
                 ItemStack sourceItem = selectedItem(player, event, true);
                 setCrateBlockFromItem(player, crate, sourceItem);
             }
-            case 14 -> requestChat(player, "&eWpisz linie hologramu oddzielone znakiem |:", input -> {
+            case 14 -> requestChat(player, "&eEnter hologram lines separated with |:", input -> {
                 crate.setHologram(List.of(input.split("\\|")));
                 crateManager.save();
                 openEdit(player, crate);
@@ -340,7 +347,7 @@ public class GuiManager implements Listener {
                     .forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
                 messageService.send(player, "key-given", Map.of("%player%", player.getName(), "%crate%", crate.getId(), "%amount%", "1"));
             }
-            case 30 -> requestChat(player, "&eWpisz wiadomosc braku klucza:", input -> {
+            case 30 -> requestChat(player, "&eEnter the no-key message:", input -> {
                 crate.setNoKeyMessage(input);
                 crateManager.save();
                 openEdit(player, crate);
@@ -410,19 +417,19 @@ public class GuiManager implements Listener {
         Reward reward = optionalReward.get();
 
         switch (event.getRawSlot()) {
-            case SLOT_REWARD_NAME -> requestChat(player, "&eWpisz nazwe itemku w skrzyni:", input -> {
+            case SLOT_REWARD_NAME -> requestChat(player, "&eEnter the item name shown in the crate:", input -> {
                 setRewardDisplayName(reward, input);
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
             case SLOT_REWARD_DISPLAY_ITEM -> setRewardDisplayItem(player, crate, reward, selectedItem(player, event, true));
             case SLOT_REWARD_DROP_ITEM -> setRewardDropItem(player, crate, reward, selectedItem(player, event, false));
-            case SLOT_REWARD_REAL_CHANCE -> requestChat(player, "&eWpisz real chance, np. 5:", input -> {
+            case SLOT_REWARD_REAL_CHANCE -> requestChat(player, "&eEnter real chance, e.g. 5:", input -> {
                 reward.setRealChance(parseDouble(input, reward.getRealChance()));
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
-            case SLOT_REWARD_DISPLAY_CHANCE -> requestChat(player, "&eWpisz display chance, np. 10:", input -> {
+            case SLOT_REWARD_DISPLAY_CHANCE -> requestChat(player, "&eEnter display chance, e.g. 10:", input -> {
                 reward.setDisplayChance(parseDouble(input, reward.getDisplayChance()));
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
@@ -468,6 +475,36 @@ public class GuiManager implements Listener {
         crateManager.save();
         messageService.send(player, "crate-block-updated", Map.of("%block%", itemStack.getType().name()));
         openEdit(player, crate);
+    }
+
+    private void renameCrate(Player player, Crate crate, String input) {
+        String oldId = crate.getId();
+        String newId = Crate.normalizeId(input);
+        if (newId.isBlank()) {
+            messageService.send(player, "crate-rename-invalid");
+            openEdit(player, crate);
+            return;
+        }
+        if (oldId.equalsIgnoreCase(newId)) {
+            openEdit(player, crate);
+            return;
+        }
+        if (crateManager.exists(newId)) {
+            messageService.send(player, "crate-exists", Map.of("%crate%", newId));
+            openEdit(player, crate);
+            return;
+        }
+
+        crateManager.renameCrate(oldId, newId).ifPresentOrElse(renamedCrate -> {
+            crateLocationManager.renameCrate(oldId, renamedCrate.getId());
+            keyManager.renameVirtualCrate(oldId, renamedCrate.getId());
+            keyManager.renamePhysicalKeysForOnlinePlayers(oldId, renamedCrate.getId());
+            messageService.send(player, "crate-renamed", Map.of("%old%", oldId, "%new%", renamedCrate.getId()));
+            openEdit(player, renamedCrate);
+        }, () -> {
+            messageService.send(player, "crate-rename-invalid");
+            openEdit(player, crate);
+        });
     }
 
     private void setRewardDisplayItem(Player player, Crate crate, Reward reward, ItemStack itemStack) {

@@ -119,7 +119,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates create <nazwa>"));
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates create <name>"));
             return;
         }
         if (crateManager.exists(args[1])) {
@@ -139,7 +139,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates delete <nazwa>"));
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates delete <name>"));
             return;
         }
         if (crateManager.deleteCrate(args[1])) {
@@ -159,7 +159,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates spawncrate <nazwa>"));
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates spawncrate <name>"));
             return;
         }
         crateManager.getCrate(args[1]).ifPresentOrElse(crate -> {
@@ -178,7 +178,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates edit <nazwa>"));
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates edit <name>"));
             return;
         }
         crateManager.getCrate(args[1]).ifPresentOrElse(crate -> guiManager.openEdit(player, crate),
@@ -191,7 +191,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 4) {
-            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates givekey <gracz> <crate> <ilosc>"));
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates givekey <player> <crate> <amount>"));
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
@@ -221,7 +221,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 4) {
-            String usage = add ? "/abestcrates addkeys <gracz> <crate> <ilosc>" : "/abestcrates removekeys <gracz> <crate> <ilosc>";
+            String usage = add ? "/abestcrates addkeys <player> <crate> <amount>" : "/abestcrates removekeys <player> <crate> <amount>";
             messageService.send(sender, "usage", Map.of("%usage%", usage));
             return;
         }
@@ -245,7 +245,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 3) {
-            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates forceopen <gracz> <crate>"));
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates forceopen <player> <crate>"));
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
@@ -261,14 +261,14 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         Arrays.asList(
             "&5ABestCrates &7commands:",
             "&f/abestcrates &8- &7Open GUI",
-            "&f/abestcrates create <nazwa>",
-            "&f/abestcrates delete <nazwa>",
-            "&f/abestcrates spawncrate <nazwa>",
-            "&f/abestcrates edit <nazwa>",
-            "&f/abestcrates givekey <gracz> <crate> <ilosc>",
-            "&f/abestcrates addkeys <gracz> <crate> <ilosc>",
-            "&f/abestcrates removekeys <gracz> <crate> <ilosc>",
-            "&f/abestcrates forceopen <gracz> <crate>",
+            "&f/abestcrates create <name>",
+            "&f/abestcrates delete <name>",
+            "&f/abestcrates spawncrate <name>",
+            "&f/abestcrates edit <name>",
+            "&f/abestcrates givekey <player> <crate> <amount>",
+            "&f/abestcrates addkeys <player> <crate> <amount>",
+            "&f/abestcrates removekeys <player> <crate> <amount>",
+            "&f/abestcrates forceopen <player> <crate>",
             "&f/abestcrates reload"
         ).forEach(line -> sender.sendMessage(pl.admerpro.aBestCrates.util.ColorUtil.color(line)));
     }

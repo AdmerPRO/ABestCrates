@@ -24,7 +24,7 @@ public class ChatInputManager implements Listener {
         pendingInputs.put(player.getUniqueId(), new PendingInput(callback));
         player.closeInventory();
         player.sendMessage(ColorUtil.color(prompt));
-        player.sendMessage(ColorUtil.color("&7Wpisz &ccancel &7aby anulowac."));
+        player.sendMessage(ColorUtil.color("&7Type &ccancel &7to cancel."));
     }
 
     @EventHandler
@@ -38,7 +38,7 @@ public class ChatInputManager implements Listener {
         event.setCancelled(true);
         String message = event.getMessage();
         if (message.equalsIgnoreCase("cancel")) {
-            event.getPlayer().sendMessage(ColorUtil.color("&cAnulowano."));
+            event.getPlayer().sendMessage(ColorUtil.color("&cCancelled."));
             return;
         }
 

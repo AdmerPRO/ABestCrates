@@ -9,11 +9,11 @@ import java.util.Random;
 import org.bukkit.Material;
 
 public class Crate {
-    private final String id;
+    private String id;
     private String displayName;
     private Material blockMaterial = Material.CHEST;
     private List<String> hologram = new ArrayList<>();
-    private String noKeyMessage = "&cNie masz klucza do %crate_displayname%";
+    private String noKeyMessage = "&cYou do not have a key for %crate_displayname%";
     private AnimationType animationType = AnimationType.INSTANT;
     private KeyDefinition keyDefinition = new KeyDefinition();
     private final List<Reward> rewards = new ArrayList<>();
@@ -22,7 +22,7 @@ public class Crate {
         this.id = normalizeId(id);
         this.displayName = "&5" + id.toUpperCase(Locale.ROOT) + " CRATE";
         this.hologram.add("&5" + id.toUpperCase(Locale.ROOT));
-        this.hologram.add("&7Kliknij aby otworzyc");
+        this.hologram.add("&7Click to open");
     }
 
     public static String normalizeId(String id) {
@@ -31,6 +31,10 @@ public class Crate {
 
     public String getId() {
         return id;
+    }
+
+    public void setId(String id) {
+        this.id = normalizeId(id);
     }
 
     public String getDisplayName() {
@@ -62,7 +66,7 @@ public class Crate {
     }
 
     public void setNoKeyMessage(String noKeyMessage) {
-        this.noKeyMessage = noKeyMessage == null || noKeyMessage.isBlank() ? "&cNie masz klucza do %crate_displayname%" : noKeyMessage;
+        this.noKeyMessage = noKeyMessage == null || noKeyMessage.isBlank() ? "&cYou do not have a key for %crate_displayname%" : noKeyMessage;
     }
 
     public AnimationType getAnimationType() {

@@ -83,6 +83,11 @@ public class CrateLocationManager {
         save();
     }
 
+    public void renameCrate(String oldId, String newId) {
+        crateLocations.replaceAll((location, crateId) -> crateId.equalsIgnoreCase(oldId) ? newId : crateId);
+        save();
+    }
+
     private record BlockKey(String world, int x, int y, int z) {
         private static BlockKey fromLocation(Location location) {
             return new BlockKey(location.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
