@@ -35,6 +35,7 @@ public final class Main extends JavaPlugin {
         crateManager.load();
         keyManager.load();
         crateLocationManager.load();
+        crateLocationManager.refreshHolograms();
 
         CrateCommand command = new CrateCommand(this, crateManager, keyManager, crateLocationManager, openingService, guiManager, messageService);
         if (getCommand("abestcrates") != null) {
@@ -58,6 +59,7 @@ public final class Main extends JavaPlugin {
             keyManager.save();
         }
         if (crateLocationManager != null) {
+            crateLocationManager.clearHolograms();
             crateLocationManager.save();
         }
     }

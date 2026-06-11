@@ -32,8 +32,10 @@ import pl.admerpro.aBestCrates.util.ColorUtil;
 import pl.admerpro.aBestCrates.util.ItemBuilder;
 
 public class GuiManager implements Listener {
-    private static final int SLOT_CRATE_REAL_NAME = 11;
+    private static final int SLOT_CRATE_REAL_NAME = 4;
+    private static final int SLOT_CRATE_COLOR = 11;
     private static final int SLOT_CRATE_BLOCK = 12;
+    private static final int SLOT_KEY_ITEM = 36;
     private static final int SLOT_REWARD_NAME = 10;
     private static final int SLOT_REWARD_DISPLAY_ITEM = 12;
     private static final int SLOT_REWARD_DROP_ITEM = 14;
@@ -50,6 +52,14 @@ public class GuiManager implements Listener {
     private final NamespacedKey crateTag;
     private final NamespacedKey rewardTag;
     private final Set<UUID> suppressedCloses = new HashSet<>();
+    private final List<CrateColor> crateColors = List.of(
+        new CrateColor("Dark Purple", "&5", Material.PURPLE_DYE),
+        new CrateColor("Gold", "&6", Material.ORANGE_DYE),
+        new CrateColor("Aqua", "&b", Material.LIGHT_BLUE_DYE),
+        new CrateColor("Green", "&a", Material.LIME_DYE),
+        new CrateColor("Red", "&c", Material.RED_DYE),
+        new CrateColor("White", "&f", Material.WHITE_DYE)
+    );
     private final List<Material> blockCycle = List.of(
         Material.CHEST,
         Material.ENDER_CHEST,
@@ -123,6 +133,7 @@ public class GuiManager implements Listener {
             "&7This is the technical crate id.",
             "&7Click to rename it."
         )).build());
+        inventory.setItem(SLOT_CRATE_COLOR, colorItem(crate));
         inventory.setItem(SLOT_CRATE_BLOCK, new ItemBuilder(crate.getBlockMaterial()).name("&6Block Type").lore(List.of(
             "&f" + crate.getBlockMaterial().name(),
             "&7Left click: set from hand/cursor.",
@@ -131,6 +142,7 @@ public class GuiManager implements Listener {
         )).build());
         inventory.setItem(14, new ItemBuilder(Material.OAK_SIGN).name("&bHologram").lore(hologramLore(crate)).build());
         inventory.setItem(16, new ItemBuilder(Material.DIAMOND).name("&aRewards").lore(List.of("&7Rewards: &f" + crate.getRewards().size(), "&7Click to manage.")).build());
+        inventory.setItem(SLOT_KEY_ITEM, keyItem(crate));
         inventory.setItem(28, new ItemBuilder(Material.TRIPWIRE_HOOK).name("&eGive Test Key").lore(List.of("&7Gives one physical key to you.")).build());
         inventory.setItem(30, new ItemBuilder(Material.WRITABLE_BOOK).name("&cNo Key Message").lore(List.of("&f" + crate.getNoKeyMessage(), "&7Click to edit in chat.")).build());
         inventory.setItem(32, new ItemBuilder(Material.CLOCK).name("&dAnimation").lore(List.of("&f" + crate.getAnimationType().name(), "&7Click to cycle.")).build());
@@ -245,6 +257,11 @@ public class GuiManager implements Listener {
             return;
         }
 
+        if (holder.getType() == MenuType.EDIT && event.getRawSlots().contains(SLOT_KEY_ITEM)) {
+            crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> setKeyTemplateFromItem(player, crate, event.getOldCursor()));
+            return;
+        }
+
         if (holder.getType() == MenuType.REWARD_EDIT) {
             Optional<Crate> optionalCrate = crateManager.getCrate(holder.getCrateId());
             if (optionalCrate.isEmpty()) {
@@ -290,6 +307,7 @@ public class GuiManager implements Listener {
                 crateManager.load();
                 keyManager.load();
                 crateLocationManager.load();
+                crateLocationManager.refreshHolograms();
                 messageService.send(player, "reloaded");
                 openMain(player);
             }
@@ -322,14 +340,21 @@ public class GuiManager implements Listener {
         switch (slot) {
             case 10 -> requestChat(player, "&eEnter the new display name:", input -> {
                 crate.setDisplayName(input);
-                crateManager.save();
+                saveAndRefreshHolograms();
                 openEdit(player, crate);
             });
             case SLOT_CRATE_REAL_NAME -> requestChat(player, "&eEnter the new real crate name:", input -> renameCrate(player, crate, input));
+            case SLOT_CRATE_COLOR -> {
+                cycleCrateColor(crate);
+                saveAndRefreshHolograms();
+                messageService.send(player, "crate-color-updated", Map.of("%color%", crateColorName(crate.getColor())));
+                openEdit(player, crate);
+            }
             case SLOT_CRATE_BLOCK -> {
                 if (event.isRightClick()) {
                     crate.setBlockMaterial(nextBlock(crate.getBlockMaterial()));
                     crateManager.save();
+                    crateLocationManager.updatePlacedBlocks(crate);
                     openEdit(player, crate);
                     return;
                 }
@@ -338,10 +363,11 @@ public class GuiManager implements Listener {
             }
             case 14 -> requestChat(player, "&eEnter hologram lines separated with |:", input -> {
                 crate.setHologram(List.of(input.split("\\|")));
-                crateManager.save();
+                saveAndRefreshHolograms();
                 openEdit(player, crate);
             });
             case 16 -> openRewards(player, crate);
+            case SLOT_KEY_ITEM -> setKeyTemplateFromItem(player, crate, selectedItem(player, event, true));
             case 28 -> {
                 player.getInventory().addItem(keyManager.createPhysicalKey(crate, 1)).values()
                     .forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
@@ -473,7 +499,20 @@ public class GuiManager implements Listener {
 
         crate.setBlockMaterial(itemStack.getType());
         crateManager.save();
+        crateLocationManager.updatePlacedBlocks(crate);
         messageService.send(player, "crate-block-updated", Map.of("%block%", itemStack.getType().name()));
+        openEdit(player, crate);
+    }
+
+    private void setKeyTemplateFromItem(Player player, Crate crate, ItemStack itemStack) {
+        if (!isUsableItem(itemStack)) {
+            messageService.send(player, "hold-item");
+            return;
+        }
+
+        crate.getKeyDefinition().setTemplateItem(itemStack);
+        crateManager.save();
+        messageService.send(player, "key-item-updated");
         openEdit(player, crate);
     }
 
@@ -569,6 +608,28 @@ public class GuiManager implements Listener {
         return new ItemBuilder(base).name(name).lore(lore).hideFlags().build();
     }
 
+    private ItemStack keyItem(Crate crate) {
+        ItemStack templateItem = crate.getKeyDefinition().getTemplateItem();
+        ItemStack base = isUsableItem(templateItem) ? templateItem : new ItemStack(crate.getKeyDefinition().getMaterial());
+        return new ItemBuilder(base).name("&eKey Item").lore(List.of(
+            "&7Left click: set from hand/cursor.",
+            "&7Drag any item here to use it.",
+            "&7All item attributes are copied.",
+            "&7Only the key name is replaced."
+        )).hideFlags().build();
+    }
+
+    private ItemStack colorItem(Crate crate) {
+        CrateColor color = crateColors.stream()
+            .filter(crateColor -> crateColor.code().equals(crate.getColor()))
+            .findFirst()
+            .orElse(crateColors.get(0));
+        return new ItemBuilder(color.icon()).name(color.code() + "Color").lore(List.of(
+            "&7Current: " + color.code() + color.name(),
+            "&7Click to cycle."
+        )).build();
+    }
+
     private ItemStack rewardDisplay(Reward reward, boolean editor) {
         ItemStack base = reward.getDisplayItem() == null ? new ItemStack(Material.PAPER) : reward.getDisplayItem();
         List<String> lore = new ArrayList<>();
@@ -606,6 +667,32 @@ public class GuiManager implements Listener {
             return blockCycle.get(0);
         }
         return blockCycle.get((index + 1) % blockCycle.size());
+    }
+
+    private void cycleCrateColor(Crate crate) {
+        int index = 0;
+        for (int i = 0; i < crateColors.size(); i++) {
+            if (crateColors.get(i).code().equals(crate.getColor())) {
+                index = i;
+                break;
+            }
+        }
+        CrateColor nextColor = crateColors.get((index + 1) % crateColors.size());
+        crate.setColor(nextColor.code());
+        crate.setDisplayName(nextColor.code() + ColorUtil.removeColor(crate.getDisplayName()));
+    }
+
+    private String crateColorName(String colorCode) {
+        return crateColors.stream()
+            .filter(crateColor -> crateColor.code().equals(colorCode))
+            .map(CrateColor::name)
+            .findFirst()
+            .orElse("Custom");
+    }
+
+    private void saveAndRefreshHolograms() {
+        crateManager.save();
+        crateLocationManager.refreshHolograms();
     }
 
     private void requestChat(Player player, String prompt, java.util.function.Consumer<String> callback) {
@@ -661,5 +748,8 @@ public class GuiManager implements Listener {
         } catch (NumberFormatException exception) {
             return fallback;
         }
+    }
+
+    private record CrateColor(String name, String code, Material icon) {
     }
 }

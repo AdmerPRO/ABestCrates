@@ -11,6 +11,7 @@ import org.bukkit.Material;
 public class Crate {
     private String id;
     private String displayName;
+    private String color = "&5";
     private Material blockMaterial = Material.CHEST;
     private List<String> hologram = new ArrayList<>();
     private String noKeyMessage = "&cYou do not have a key for %crate_displayname%";
@@ -43,6 +44,14 @@ public class Crate {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName == null || displayName.isBlank() ? id : displayName;
+    }
+
+    public String getColor() {
+        return color;
+    }
+
+    public void setColor(String color) {
+        this.color = color == null || color.isBlank() ? "&5" : color;
     }
 
     public Material getBlockMaterial() {

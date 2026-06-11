@@ -89,14 +89,19 @@ public class KeyManager {
 
     public ItemStack createPhysicalKey(Crate crate, int amount) {
         KeyDefinition definition = crate.getKeyDefinition();
-        ItemStack itemStack = new ItemStack(definition.getMaterial(), Math.max(1, amount));
+        ItemStack templateItem = definition.getTemplateItem();
+        ItemStack itemStack = templateItem == null
+            ? new ItemStack(definition.getMaterial(), Math.max(1, amount))
+            : templateItem.asQuantity(Math.max(1, amount));
         ItemMeta meta = itemStack.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(ColorUtil.color(applyCratePlaceholders(definition.getDisplayName(), crate)));
-            meta.setLore(ColorUtil.color(definition.getLore().stream()
-                .map(line -> applyCratePlaceholders(line, crate))
-                .toList()));
-            if (definition.getCustomModelData() != null) {
+            if (templateItem == null) {
+                meta.setLore(ColorUtil.color(definition.getLore().stream()
+                    .map(line -> applyCratePlaceholders(line, crate))
+                    .toList()));
+            }
+            if (templateItem == null && definition.getCustomModelData() != null) {
                 meta.setCustomModelData(definition.getCustomModelData());
             }
             meta.getPersistentDataContainer().set(crateKey, PersistentDataType.STRING, crate.getId());

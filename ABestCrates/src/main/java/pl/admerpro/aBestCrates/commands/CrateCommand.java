@@ -110,6 +110,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         crateManager.load();
         keyManager.load();
         crateLocationManager.load();
+        crateLocationManager.refreshHolograms();
         messageService.send(sender, "reloaded");
     }
 

@@ -3,6 +3,7 @@ package pl.admerpro.aBestCrates.model;
 import java.util.ArrayList;
 import java.util.List;
 import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
 
 public class KeyDefinition {
     private Material material = Material.TRIPWIRE_HOOK;
@@ -10,6 +11,7 @@ public class KeyDefinition {
     private List<String> lore = new ArrayList<>(List.of("&7Use this key to open", "&f%crate_displayname%"));
     private boolean glow = true;
     private Integer customModelData;
+    private ItemStack templateItem;
 
     public Material getMaterial() {
         return material;
@@ -49,5 +51,21 @@ public class KeyDefinition {
 
     public void setCustomModelData(Integer customModelData) {
         this.customModelData = customModelData;
+    }
+
+    public ItemStack getTemplateItem() {
+        return templateItem == null ? null : templateItem.clone();
+    }
+
+    public void setTemplateItem(ItemStack templateItem) {
+        if (templateItem == null || templateItem.getType().isAir()) {
+            this.templateItem = null;
+            return;
+        }
+
+        ItemStack copy = templateItem.clone();
+        copy.setAmount(1);
+        this.templateItem = copy;
+        this.material = copy.getType();
     }
 }

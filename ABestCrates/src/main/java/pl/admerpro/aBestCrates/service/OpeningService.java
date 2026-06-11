@@ -8,14 +8,18 @@ import java.util.Random;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.FireworkEffect;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 import pl.admerpro.aBestCrates.manager.CrateManager;
 import pl.admerpro.aBestCrates.manager.KeyManager;
+import pl.admerpro.aBestCrates.model.AnimationType;
 import pl.admerpro.aBestCrates.model.Crate;
 import pl.admerpro.aBestCrates.model.Reward;
 import pl.admerpro.aBestCrates.util.ColorUtil;
@@ -42,13 +46,15 @@ public class OpeningService {
         open(player, crate, true);
     }
 
-    public void openAllPhysicalKeys(Player player, Crate crate) {
+    public void openAllKeys(Player player, Crate crate) {
         if (!player.hasPermission("abestcrates.use")) {
             messageService.send(player, "no-permission");
             return;
         }
 
-        int keyAmount = keyManager.countPhysicalKeys(player, crate);
+        int physicalKeys = keyManager.countPhysicalKeys(player, crate);
+        int virtualKeys = keyManager.getVirtualKeys(player.getUniqueId(), crate.getId());
+        int keyAmount = physicalKeys + virtualKeys;
         if (keyAmount <= 0) {
             player.sendMessage(ColorUtil.color(applyPlaceholders(crate.getNoKeyMessage(), player, crate, null)));
             return;
@@ -64,12 +70,15 @@ public class OpeningService {
             rewards.add(reward);
         }
 
-        if (!hasSpaceForRewardsAfterKeys(player, crate, keyAmount, rewards)) {
+        if (!hasSpaceForRewardsAfterKeys(player, crate, physicalKeys, rewards)) {
             messageService.send(player, "not-enough-inventory-space", Map.of("%amount%", String.valueOf(keyAmount)));
             return;
         }
 
-        keyManager.consumePhysicalKeys(player, crate, keyAmount);
+        keyManager.consumePhysicalKeys(player, crate, physicalKeys);
+        if (virtualKeys > 0) {
+            keyManager.removeVirtualKeys(player.getUniqueId(), crate.getId(), virtualKeys);
+        }
         for (Reward reward : rewards) {
             giveItemReward(player, reward);
             executeCommands(player, crate, reward);
@@ -106,6 +115,15 @@ public class OpeningService {
             return;
         }
 
+        if (!forced && crate.getAnimationType() != AnimationType.INSTANT) {
+            playAnimation(player, crate, reward);
+            return;
+        }
+
+        completeOpen(player, crate, reward);
+    }
+
+    private void completeOpen(Player player, Crate crate, Reward reward) {
         giveItemReward(player, reward);
         executeCommands(player, crate, reward);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.25F);
@@ -123,6 +141,52 @@ public class OpeningService {
         if (reward.isBroadcast()) {
             broadcastReward(player, crate, reward);
         }
+    }
+
+    private void playAnimation(Player player, Crate crate, Reward reward) {
+        Inventory inventory = Bukkit.createInventory(null, 27, ColorUtil.color("&5Opening: &f" + ColorUtil.removeColor(crate.getDisplayName())));
+        player.openInventory(inventory);
+
+        List<ItemStack> displayItems = crate.getRewards().stream()
+            .map(Reward::getDisplayItem)
+            .filter(itemStack -> itemStack != null && !itemStack.getType().isAir())
+            .toList();
+        if (displayItems.isEmpty()) {
+            displayItems = List.of(new ItemStack(Material.PAPER));
+        }
+
+        int iterations = switch (crate.getAnimationType()) {
+            case FAST -> 10;
+            case SLOT_MACHINE -> 22;
+            case SPIN -> 18;
+            case CLASSIC -> 16;
+            case INSTANT -> 0;
+        };
+        long period = crate.getAnimationType() == AnimationType.FAST ? 1L : 2L;
+        List<ItemStack> animationItems = displayItems;
+
+        new BukkitRunnable() {
+            private int tick;
+
+            @Override
+            public void run() {
+                if (tick >= iterations) {
+                    inventory.clear();
+                    inventory.setItem(13, rewardDisplayItem(reward));
+                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.35F);
+                    completeOpen(player, crate, reward);
+                    cancel();
+                    return;
+                }
+
+                for (int slot = 9; slot <= 17; slot++) {
+                    inventory.setItem(slot, animationItems.get(random.nextInt(animationItems.size())).clone());
+                }
+                inventory.setItem(13, animationItems.get(random.nextInt(animationItems.size())).clone());
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.7F, 1.4F);
+                tick++;
+            }
+        }.runTaskTimer(plugin, 0L, period);
     }
 
     private void giveItemReward(Player player, Reward reward) {
@@ -236,5 +300,10 @@ public class OpeningService {
             return displayItem.getType().name();
         }
         return reward.getId();
+    }
+
+    private ItemStack rewardDisplayItem(Reward reward) {
+        ItemStack displayItem = reward.getDisplayItem();
+        return displayItem == null ? new ItemStack(Material.PAPER) : displayItem.clone();
     }
 }

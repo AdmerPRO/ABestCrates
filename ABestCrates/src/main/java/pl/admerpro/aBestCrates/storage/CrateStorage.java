@@ -44,6 +44,7 @@ public class CrateStorage {
 
             Crate crate = new Crate(crateId);
             crate.setDisplayName(section.getString("display-name", crate.getDisplayName()));
+            crate.setColor(section.getString("color", crate.getColor()));
             crate.setBlockMaterial(readMaterial(section.getString("block"), Material.CHEST));
             crate.setHologram(section.getStringList("hologram"));
             crate.setNoKeyMessage(section.getString("no-key-message", crate.getNoKeyMessage()));
@@ -60,6 +61,7 @@ public class CrateStorage {
         for (Crate crate : crates) {
             String path = "crates." + crate.getId() + ".";
             configuration.set(path + "display-name", crate.getDisplayName());
+            configuration.set(path + "color", crate.getColor());
             configuration.set(path + "block", crate.getBlockMaterial().name());
             configuration.set(path + "hologram", crate.getHologram());
             configuration.set(path + "no-key-message", crate.getNoKeyMessage());
@@ -71,6 +73,7 @@ public class CrateStorage {
             configuration.set(path + "key.lore", key.getLore());
             configuration.set(path + "key.glow", key.isGlow());
             configuration.set(path + "key.custom-model-data", key.getCustomModelData());
+            configuration.set(path + "key.template-item", key.getTemplateItem());
 
             for (Reward reward : crate.getRewards()) {
                 String rewardPath = path + "rewards." + reward.getId() + ".";
@@ -105,6 +108,7 @@ public class CrateStorage {
         if (section.isInt("custom-model-data")) {
             key.setCustomModelData(section.getInt("custom-model-data"));
         }
+        key.setTemplateItem(section.getItemStack("template-item"));
         return key;
     }
 

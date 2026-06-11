@@ -34,14 +34,14 @@ public class CrateListener implements Listener {
 
         event.setCancelled(true);
         if (event.getAction() == Action.LEFT_CLICK_BLOCK && event.getPlayer().isSneaking()) {
-            openingService.openAllPhysicalKeys(event.getPlayer(), crate);
-            return;
-        }
-        if (event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getPlayer().isSneaking()) {
-            guiManager.openPreview(event.getPlayer(), crate);
+            openingService.openAllKeys(event.getPlayer(), crate);
             return;
         }
         if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+            guiManager.openPreview(event.getPlayer(), crate);
+            return;
+        }
+        if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
             openingService.open(event.getPlayer(), crate);
         }
     }
