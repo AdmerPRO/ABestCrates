@@ -3,7 +3,9 @@ package pl.admerpro.aBestCrates.listeners;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import pl.admerpro.aBestCrates.gui.GuiManager;
 import pl.admerpro.aBestCrates.manager.CrateLocationManager;
@@ -55,5 +57,15 @@ public class CrateListener implements Listener {
 
         event.setCancelled(true);
         event.getPlayer().sendMessage(pl.admerpro.aBestCrates.util.ColorUtil.color("&cThis crate is protected."));
+    }
+
+    @EventHandler
+    public void onEntityExplode(EntityExplodeEvent event) {
+        event.blockList().removeIf(crateLocationManager::isCrateBlock);
+    }
+
+    @EventHandler
+    public void onBlockExplode(BlockExplodeEvent event) {
+        event.blockList().removeIf(crateLocationManager::isCrateBlock);
     }
 }

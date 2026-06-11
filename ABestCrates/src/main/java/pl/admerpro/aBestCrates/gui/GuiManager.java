@@ -33,9 +33,9 @@ import pl.admerpro.aBestCrates.util.ItemBuilder;
 
 public class GuiManager implements Listener {
     private static final int SLOT_CRATE_REAL_NAME = 4;
-    private static final int SLOT_CRATE_COLOR = 11;
+    private static final int SLOT_CRATE_COLOR = 22;
     private static final int SLOT_CRATE_BLOCK = 12;
-    private static final int SLOT_KEY_ITEM = 36;
+    private static final int SLOT_KEY_ITEM = 40;
     private static final int SLOT_REWARD_NAME = 10;
     private static final int SLOT_REWARD_DISPLAY_ITEM = 12;
     private static final int SLOT_REWARD_DROP_ITEM = 14;
@@ -224,10 +224,16 @@ public class GuiManager implements Listener {
         if (!(event.getWhoClicked() instanceof Player player) || !(event.getInventory().getHolder() instanceof MenuHolder holder)) {
             return;
         }
-        event.setCancelled(true);
-        if (event.getRawSlot() < 0 || event.getRawSlot() >= event.getInventory().getSize()) {
+        if (event.getRawSlot() < 0) {
             return;
         }
+        if (event.getRawSlot() >= event.getInventory().getSize()) {
+            if (event.isShiftClick()) {
+                event.setCancelled(true);
+            }
+            return;
+        }
+        event.setCancelled(true);
 
         switch (holder.getType()) {
             case MAIN -> handleMain(player, event.getRawSlot());

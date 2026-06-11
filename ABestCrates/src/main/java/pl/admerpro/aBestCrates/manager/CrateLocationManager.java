@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -84,6 +85,10 @@ public class CrateLocationManager {
         return crateId == null ? Optional.empty() : crateManager.getCrate(crateId);
     }
 
+    public boolean isCrateBlock(Block block) {
+        return block != null && crateLocations.containsKey(BlockKey.fromLocation(block.getLocation()));
+    }
+
     public void removeCrateAt(Block block) {
         if (block == null) {
             return;
@@ -91,6 +96,18 @@ public class CrateLocationManager {
         crateLocations.remove(BlockKey.fromLocation(block.getLocation()));
         save();
         refreshHolograms();
+    }
+
+    public boolean removePlacedCrate(Block block) {
+        if (!isCrateBlock(block)) {
+            return false;
+        }
+
+        crateLocations.remove(BlockKey.fromLocation(block.getLocation()));
+        block.setType(Material.AIR);
+        save();
+        refreshHolograms();
+        return true;
     }
 
     public void renameCrate(String oldId, String newId) {

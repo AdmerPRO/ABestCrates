@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -27,6 +28,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         "reload",
         "create",
         "delete",
+        "deletecrate",
         "spawncrate",
         "edit",
         "givekey",
@@ -74,6 +76,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             case "reload" -> reload(sender);
             case "create" -> create(sender, args);
             case "delete" -> delete(sender, args);
+            case "deletecrate" -> deletePlacedCrate(sender);
             case "spawncrate" -> spawnCrate(sender, args);
             case "edit" -> edit(sender, args);
             case "givekey" -> giveKey(sender, args);
@@ -149,6 +152,25 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             messageService.send(sender, "crate-missing", Map.of("%crate%", args[1]));
         }
     }
+
+    private void deletePlacedCrate(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            messageService.send(sender, "player-only");
+            return;
+        }
+        if (!has(sender, "abestcrates.create")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+
+        Block targetBlock = player.getTargetBlockExact(8);
+        if (targetBlock == null || !crateLocationManager.removePlacedCrate(targetBlock)) {
+            messageService.send(sender, "placed-crate-missing");
+            return;
+        }
+        messageService.send(sender, "placed-crate-deleted");
+    }
+
 
     private void spawnCrate(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
@@ -264,6 +286,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             "&f/abestcrates &8- &7Open GUI",
             "&f/abestcrates create <name>",
             "&f/abestcrates delete <name>",
+            "&f/abestcrates deletecrate",
             "&f/abestcrates spawncrate <name>",
             "&f/abestcrates edit <name>",
             "&f/abestcrates givekey <player> <crate> <amount>",

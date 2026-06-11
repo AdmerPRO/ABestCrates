@@ -8,6 +8,8 @@ messages:
   saved: '&aSaved.'
   crate-created: '&aCreated crate &f%crate%&a.'
   crate-deleted: '&aDeleted crate &f%crate%&a.'
+  placed-crate-deleted: '&aDeleted the placed crate you were looking at.'
+  placed-crate-missing: '&cLook at a placed crate first.'
   crate-exists: '&cCrate &f%crate% &calready exists.'
   crate-missing: '&cCrate &f%crate% &cwas not found.'
   crate-spawned: '&aPlaced crate &f%crate%&a at your location.'
