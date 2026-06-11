@@ -146,6 +146,10 @@ public class KeyManager {
                 amount += itemStack.getAmount();
             }
         }
+        ItemStack offHand = player.getInventory().getItemInOffHand();
+        if (isPhysicalKeyForCrate(offHand, crate)) {
+            amount += offHand.getAmount();
+        }
         return amount;
     }
 
@@ -168,6 +172,15 @@ public class KeyManager {
             contents[index] = newAmount <= 0 ? null : itemStack.asQuantity(newAmount);
         }
         player.getInventory().setStorageContents(contents);
+
+        if (remaining > 0) {
+            ItemStack offHand = player.getInventory().getItemInOffHand();
+            if (isPhysicalKeyForCrate(offHand, crate)) {
+                int removed = Math.min(remaining, offHand.getAmount());
+                int newAmount = offHand.getAmount() - removed;
+                player.getInventory().setItemInOffHand(newAmount <= 0 ? null : offHand.asQuantity(newAmount));
+            }
+        }
     }
 
     public int getVirtualKeys(UUID uuid, String crateId) {
@@ -214,6 +227,14 @@ public class KeyManager {
             if (amount != null) {
                 playerKeys.merge(newKey, amount, Integer::sum);
             }
+        }
+        save();
+    }
+
+    public void removeVirtualCrate(String crateId) {
+        String crateKey = key(crateId);
+        for (Map<String, Integer> playerKeys : virtualKeys.values()) {
+            playerKeys.remove(crateKey);
         }
         save();
     }

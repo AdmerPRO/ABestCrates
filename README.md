@@ -1,73 +1,72 @@
 # ABestCrates
 
-ABestCrates to plugin Paper do Minecrafta, ktory pozwala tworzyc i obslugiwac konfigurowalne skrzynki z poziomu komend oraz GUI. Projekt jest rozwijany jako nowoczesny system crates z obsluga kluczy fizycznych, kluczy wirtualnych, nagrod itemowych, nagrod komendowych i podgladu nagrod.
+ABestCrates is a Paper plugin for configurable Minecraft crates managed mostly through in-game GUI menus.
 
-## Status
+## Features
 
-Aktualnie zaimplementowany jest pierwszy dzialajacy rdzen pluginu:
+- GUI-based crate creation and editing
+- Physical placed crates with protected blocks and holograms
+- Physical keys and virtual keys
+- Custom key item templates with copied item meta/custom model data
+- Item rewards and command rewards
+- Real chance and display chance per reward
+- Reward preview by right-clicking a crate
+- Opening by left-clicking a crate
+- Bulk opening with Shift + left-click
+- Basic opening animations: Classic, Fast, Instant
+- Placed crate removal with `/abc deletecrate`
 
-- tworzenie i usuwanie skrzynek,
-- stawianie fizycznej skrzynki w lokacji gracza,
-- edytor GUI dla podstawowych ustawien skrzynki,
-- podglad nagrod,
-- klucze fizyczne jako itemy,
-- klucze wirtualne zapisywane w pliku,
-- losowanie nagrod po realnej szansie,
-- oddzielna wyswietlana szansa nagrody,
-- nagrody itemowe,
-- nagrody komendowe,
-- podstawowe efekty wygranej.
-
-Kolejne moduly, takie jak rozbudowane animacje, hologramy, statystyki, webhooki Discord, pity system, daily crates i API eventow, sa przewidziane jako dalszy rozwoj projektu.
-
-## Wymagania
+## Requirements
 
 - Java 21
-- Paper API 1.21.x
-- Maven
+- Paper 1.21.x
+- Maven for building from source
 
-## Budowanie
+## Build
+
+From the repository root:
 
 ```bash
-mvn -q -DskipTests package
+mvn -f ABestCrates/pom.xml -q -DskipTests package
 ```
 
-Gotowy plik `.jar` znajduje sie w katalogu:
+The release jar is generated at:
 
 ```text
-target/ABestCrates-1.0-SNAPSHOT.jar
+ABestCrates/target/ABestCrates-1.0.0.jar
 ```
 
-## Komendy
+## Installation
 
-Glowna komenda:
+1. Put `ABestCrates-1.0.0.jar` in your server `plugins` folder.
+2. Start or restart the Paper server.
+3. Use `/abc gui` to open the main GUI.
+
+## Commands
+
+```text
+/abc gui
+/abc reload
+/abc create <name>
+/abc delete <name>
+/abc deletecrate
+/abc spawncrate <name>
+/abc edit <name>
+/abc givekey <player> <crate> <amount>
+/abc addkeys <player> <crate> <amount>
+/abc removekeys <player> <crate> <amount>
+/abc forceopen <player> <crate>
+```
+
+Aliases:
 
 ```text
 /abestcrates
-```
-
-Aliasy:
-
-```text
 /acrates
 /abc
 ```
 
-Komendy administratora:
-
-```text
-/abestcrates reload
-/abestcrates create <nazwa>
-/abestcrates delete <nazwa>
-/abestcrates spawncrate <nazwa>
-/abestcrates edit <nazwa>
-/abestcrates givekey <gracz> <crate> <ilosc>
-/abestcrates addkeys <gracz> <crate> <ilosc>
-/abestcrates removekeys <gracz> <crate> <ilosc>
-/abestcrates forceopen <gracz> <crate>
-```
-
-## Uprawnienia
+## Permissions
 
 ```text
 abestcrates.admin
@@ -78,9 +77,9 @@ abestcrates.givekey
 abestcrates.reload
 ```
 
-## Pliki danych
+## Runtime Data
 
-Plugin zapisuje dane runtime w katalogu pluginu na serwerze:
+The plugin stores runtime data in:
 
 ```text
 plugins/ABestCrates/crates.yml
@@ -88,12 +87,6 @@ plugins/ABestCrates/virtual-keys.yml
 plugins/ABestCrates/locations.yml
 ```
 
-Domyslne wiadomosci znajduja sie w:
+## License
 
-```text
-src/main/resources/config.yml
-```
-
-## Licencja
-
-Projekt jest objety licencja All Rights Reserved. Szczegoly znajduja sie w pliku `LICENSE`.
+All Rights Reserved. See `LICENSE`.

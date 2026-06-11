@@ -15,6 +15,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import pl.admerpro.aBestCrates.manager.CrateManager;
@@ -145,6 +146,9 @@ public class OpeningService {
 
     private void playAnimation(Player player, Crate crate, Reward reward) {
         Inventory inventory = Bukkit.createInventory(null, 27, ColorUtil.color("&5Opening: &f" + ColorUtil.removeColor(crate.getDisplayName())));
+        ItemStack centerMarker = centerMarker();
+        inventory.setItem(4, centerMarker);
+        inventory.setItem(22, centerMarker);
         player.openInventory(inventory);
 
         List<ItemStack> displayItems = crate.getRewards().stream()
@@ -157,8 +161,6 @@ public class OpeningService {
 
         int iterations = switch (crate.getAnimationType()) {
             case FAST -> 10;
-            case SLOT_MACHINE -> 22;
-            case SPIN -> 18;
             case CLASSIC -> 16;
             case INSTANT -> 0;
         };
@@ -172,7 +174,9 @@ public class OpeningService {
             public void run() {
                 if (tick >= iterations) {
                     inventory.clear();
+                    inventory.setItem(4, centerMarker);
                     inventory.setItem(13, rewardDisplayItem(reward));
+                    inventory.setItem(22, centerMarker);
                     player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.35F);
                     completeOpen(player, crate, reward);
                     cancel();
@@ -182,7 +186,9 @@ public class OpeningService {
                 for (int slot = 9; slot <= 17; slot++) {
                     inventory.setItem(slot, animationItems.get(random.nextInt(animationItems.size())).clone());
                 }
+                inventory.setItem(4, centerMarker);
                 inventory.setItem(13, animationItems.get(random.nextInt(animationItems.size())).clone());
+                inventory.setItem(22, centerMarker);
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.7F, 1.4F);
                 tick++;
             }
@@ -305,5 +311,15 @@ public class OpeningService {
     private ItemStack rewardDisplayItem(Reward reward) {
         ItemStack displayItem = reward.getDisplayItem();
         return displayItem == null ? new ItemStack(Material.PAPER) : displayItem.clone();
+    }
+
+    private ItemStack centerMarker() {
+        ItemStack itemStack = new ItemStack(Material.LIME_BANNER);
+        ItemMeta meta = itemStack.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ColorUtil.color("&a&lWIN"));
+            itemStack.setItemMeta(meta);
+        }
+        return itemStack;
     }
 }

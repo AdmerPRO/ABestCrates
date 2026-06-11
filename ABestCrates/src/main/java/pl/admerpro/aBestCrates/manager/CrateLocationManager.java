@@ -16,6 +16,7 @@ import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -89,6 +90,11 @@ public class CrateLocationManager {
         return block != null && crateLocations.containsKey(BlockKey.fromLocation(block.getLocation()));
     }
 
+    public boolean isCrateHologram(Entity entity) {
+        return entity instanceof ArmorStand armorStand
+            && armorStand.getPersistentDataContainer().has(hologramKey, PersistentDataType.BYTE);
+    }
+
     public void removeCrateAt(Block block) {
         if (block == null) {
             return;
@@ -108,6 +114,21 @@ public class CrateLocationManager {
         save();
         refreshHolograms();
         return true;
+    }
+
+    public void removeCratePlacements(String crateId) {
+        crateLocations.entrySet().removeIf(entry -> {
+            if (!entry.getValue().equalsIgnoreCase(crateId)) {
+                return false;
+            }
+            Location location = entry.getKey().toLocation();
+            if (location != null) {
+                location.getBlock().setType(Material.AIR);
+            }
+            return true;
+        });
+        save();
+        refreshHolograms();
     }
 
     public void renameCrate(String oldId, String newId) {

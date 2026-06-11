@@ -6,6 +6,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import pl.admerpro.aBestCrates.gui.GuiManager;
 import pl.admerpro.aBestCrates.manager.CrateLocationManager;
@@ -67,5 +68,12 @@ public class CrateListener implements Listener {
     @EventHandler
     public void onBlockExplode(BlockExplodeEvent event) {
         event.blockList().removeIf(crateLocationManager::isCrateBlock);
+    }
+
+    @EventHandler
+    public void onEntityDamage(EntityDamageEvent event) {
+        if (crateLocationManager.isCrateHologram(event.getEntity())) {
+            event.setCancelled(true);
+        }
     }
 }

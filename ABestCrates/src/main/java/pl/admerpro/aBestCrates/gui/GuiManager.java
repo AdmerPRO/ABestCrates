@@ -204,7 +204,11 @@ public class GuiManager implements Listener {
     }
 
     public void openPreview(Player player, Crate crate) {
-        MenuHolder holder = new MenuHolder(MenuType.PREVIEW, crate.getId());
+        openPreview(player, crate, false);
+    }
+
+    public void openPreview(Player player, Crate crate, boolean returnToSettings) {
+        MenuHolder holder = new MenuHolder(MenuType.PREVIEW, crate.getId(), returnToSettings ? "settings" : null);
         Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.color("&5Preview: &f" + ColorUtil.removeColor(crate.getDisplayName())));
         holder.setInventory(inventory);
 
@@ -389,7 +393,7 @@ public class GuiManager implements Listener {
                 crateManager.save();
                 openEdit(player, crate);
             }
-            case 34 -> openPreview(player, crate);
+            case 34 -> openPreview(player, crate, true);
             case 49 -> {
                 crateManager.save();
                 messageService.send(player, "saved");
@@ -702,8 +706,9 @@ public class GuiManager implements Listener {
     }
 
     private void requestChat(Player player, String prompt, java.util.function.Consumer<String> callback) {
+        MenuHolder previousMenu = player.getOpenInventory().getTopInventory().getHolder() instanceof MenuHolder holder ? holder : null;
         suppressNextClose(player);
-        chatInputManager.request(player, prompt, callback);
+        chatInputManager.request(player, prompt, callback, () -> reopenMenu(player, previousMenu));
     }
 
     private void openMenu(Player player, Inventory inventory) {
@@ -723,8 +728,30 @@ public class GuiManager implements Listener {
             case EDIT -> openManage(player);
             case REWARDS -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openEdit(player, crate));
             case REWARD_EDIT -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openRewards(player, crate));
+            case PREVIEW -> {
+                if ("settings".equals(holder.getRewardId())) {
+                    crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openEdit(player, crate));
+                }
+            }
             default -> {
             }
+        }
+    }
+
+    private void reopenMenu(Player player, MenuHolder holder) {
+        if (holder == null) {
+            return;
+        }
+
+        switch (holder.getType()) {
+            case MAIN -> openMain(player);
+            case MANAGE -> openManage(player);
+            case EDIT -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openEdit(player, crate));
+            case REWARDS -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openRewards(player, crate));
+            case REWARD_EDIT -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
+                crate.getReward(holder.getRewardId()).ifPresent(reward -> openRewardEdit(player, crate, reward)));
+            case PREVIEW -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
+                openPreview(player, crate, "settings".equals(holder.getRewardId())));
         }
     }
 

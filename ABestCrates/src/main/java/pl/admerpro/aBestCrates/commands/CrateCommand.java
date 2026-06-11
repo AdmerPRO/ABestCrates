@@ -25,6 +25,7 @@ import pl.admerpro.aBestCrates.service.OpeningService;
 
 public class CrateCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = List.of(
+        "gui",
         "reload",
         "create",
         "delete",
@@ -59,20 +60,13 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            if (!(sender instanceof Player player)) {
-                sendHelp(sender);
-                return true;
-            }
-            if (!has(sender, "abestcrates.admin")) {
-                messageService.send(sender, "no-permission");
-                return true;
-            }
-            guiManager.openMain(player);
+            openGui(sender);
             return true;
         }
 
         String subcommand = args[0].toLowerCase(Locale.ROOT);
         switch (subcommand) {
+            case "gui" -> openGui(sender);
             case "reload" -> reload(sender);
             case "create" -> create(sender, args);
             case "delete" -> delete(sender, args);
@@ -95,13 +89,31 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         }
 
         String subcommand = args[0].toLowerCase(Locale.ROOT);
+        if (args.length == 2 && List.of("givekey", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
+            return filter(playerNames(), args[1]);
+        }
         if (args.length == 2 && List.of("delete", "spawncrate", "edit").contains(subcommand)) {
             return filter(crateNames(), args[1]);
         }
         if (args.length == 3 && List.of("givekey", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
             return filter(crateNames(), args[2]);
         }
+        if (args.length == 4 && List.of("givekey", "addkeys", "removekeys").contains(subcommand)) {
+            return filter(List.of("1", "2", "3", "5", "10"), args[3]);
+        }
         return List.of();
+    }
+
+    private void openGui(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sendHelp(sender);
+            return;
+        }
+        if (!has(sender, "abestcrates.admin")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        guiManager.openMain(player);
     }
 
     private void reload(CommandSender sender) {
@@ -147,6 +159,8 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (crateManager.deleteCrate(args[1])) {
+            crateLocationManager.removeCratePlacements(args[1]);
+            keyManager.removeVirtualCrate(args[1]);
             messageService.send(sender, "crate-deleted", Map.of("%crate%", args[1]));
         } else {
             messageService.send(sender, "crate-missing", Map.of("%crate%", args[1]));
@@ -284,6 +298,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         Arrays.asList(
             "&5ABestCrates &7commands:",
             "&f/abestcrates &8- &7Open GUI",
+            "&f/abestcrates gui",
             "&f/abestcrates create <name>",
             "&f/abestcrates delete <name>",
             "&f/abestcrates deletecrate",
@@ -311,6 +326,12 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
 
     private List<String> crateNames() {
         return crateManager.getCrates().stream().map(Crate::getId).toList();
+    }
+
+    private List<String> playerNames() {
+        return Bukkit.getOnlinePlayers().stream()
+            .map(Player::getName)
+            .toList();
     }
 
     private List<String> filter(List<String> values, String prefix) {

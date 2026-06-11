@@ -3,8 +3,6 @@ package pl.admerpro.aBestCrates.model;
 public enum AnimationType {
     CLASSIC,
     FAST,
-    SLOT_MACHINE,
-    SPIN,
     INSTANT;
 
     public AnimationType next() {

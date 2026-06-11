@@ -20,8 +20,8 @@ public class ChatInputManager implements Listener {
         this.plugin = plugin;
     }
 
-    public void request(Player player, String prompt, Consumer<String> callback) {
-        pendingInputs.put(player.getUniqueId(), new PendingInput(callback));
+    public void request(Player player, String prompt, Consumer<String> callback, Runnable cancelCallback) {
+        pendingInputs.put(player.getUniqueId(), new PendingInput(callback, cancelCallback));
         player.closeInventory();
         player.sendMessage(ColorUtil.color(prompt));
         player.sendMessage(ColorUtil.color("&7Type &ccancel &7to cancel."));
@@ -38,13 +38,16 @@ public class ChatInputManager implements Listener {
         event.setCancelled(true);
         String message = event.getMessage();
         if (message.equalsIgnoreCase("cancel")) {
-            event.getPlayer().sendMessage(ColorUtil.color("&cCancelled."));
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                event.getPlayer().sendMessage(ColorUtil.color("&cCancelled."));
+                pendingInput.cancelCallback().run();
+            });
             return;
         }
 
         Bukkit.getScheduler().runTask(plugin, () -> pendingInput.callback().accept(message));
     }
 
-    private record PendingInput(Consumer<String> callback) {
+    private record PendingInput(Consumer<String> callback, Runnable cancelCallback) {
     }
 }
