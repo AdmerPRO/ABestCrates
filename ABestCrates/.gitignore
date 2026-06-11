@@ -1,4 +1,24 @@
+# Maven
 target/
+
+# IDE
 .idea/
+.vscode/
 *.iml
+
+# Logs
 *.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local test servers
+run/
+server/
+eula.txt
+crash-reports/
+
+# Runtime plugin data generated outside resources
+plugins/ABestCrates/
