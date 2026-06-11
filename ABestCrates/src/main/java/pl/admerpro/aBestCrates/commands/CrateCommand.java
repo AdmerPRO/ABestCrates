@@ -1,0 +1,302 @@
+package pl.admerpro.aBestCrates.commands;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.java.JavaPlugin;
+import pl.admerpro.aBestCrates.gui.GuiManager;
+import pl.admerpro.aBestCrates.manager.CrateLocationManager;
+import pl.admerpro.aBestCrates.manager.CrateManager;
+import pl.admerpro.aBestCrates.manager.KeyManager;
+import pl.admerpro.aBestCrates.model.Crate;
+import pl.admerpro.aBestCrates.service.MessageService;
+import pl.admerpro.aBestCrates.service.OpeningService;
+
+public class CrateCommand implements CommandExecutor, TabCompleter {
+    private static final List<String> SUBCOMMANDS = List.of(
+        "reload",
+        "create",
+        "delete",
+        "spawncrate",
+        "edit",
+        "givekey",
+        "addkeys",
+        "removekeys",
+        "forceopen"
+    );
+
+    private final JavaPlugin plugin;
+    private final CrateManager crateManager;
+    private final KeyManager keyManager;
+    private final CrateLocationManager crateLocationManager;
+    private final OpeningService openingService;
+    private final GuiManager guiManager;
+    private final MessageService messageService;
+
+    public CrateCommand(JavaPlugin plugin, CrateManager crateManager, KeyManager keyManager, CrateLocationManager crateLocationManager,
+                        OpeningService openingService, GuiManager guiManager, MessageService messageService) {
+        this.plugin = plugin;
+        this.crateManager = crateManager;
+        this.keyManager = keyManager;
+        this.crateLocationManager = crateLocationManager;
+        this.openingService = openingService;
+        this.guiManager = guiManager;
+        this.messageService = messageService;
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (args.length == 0) {
+            if (!(sender instanceof Player player)) {
+                sendHelp(sender);
+                return true;
+            }
+            if (!has(sender, "abestcrates.admin")) {
+                messageService.send(sender, "no-permission");
+                return true;
+            }
+            guiManager.openMain(player);
+            return true;
+        }
+
+        String subcommand = args[0].toLowerCase(Locale.ROOT);
+        switch (subcommand) {
+            case "reload" -> reload(sender);
+            case "create" -> create(sender, args);
+            case "delete" -> delete(sender, args);
+            case "spawncrate" -> spawnCrate(sender, args);
+            case "edit" -> edit(sender, args);
+            case "givekey" -> giveKey(sender, args);
+            case "addkeys" -> addKeys(sender, args);
+            case "removekeys" -> removeKeys(sender, args);
+            case "forceopen" -> forceOpen(sender, args);
+            default -> sendHelp(sender);
+        }
+        return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 1) {
+            return filter(SUBCOMMANDS, args[0]);
+        }
+
+        String subcommand = args[0].toLowerCase(Locale.ROOT);
+        if (args.length == 2 && List.of("delete", "spawncrate", "edit").contains(subcommand)) {
+            return filter(crateNames(), args[1]);
+        }
+        if (args.length == 3 && List.of("givekey", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
+            return filter(crateNames(), args[2]);
+        }
+        return List.of();
+    }
+
+    private void reload(CommandSender sender) {
+        if (!has(sender, "abestcrates.reload")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        plugin.reloadConfig();
+        crateManager.load();
+        keyManager.load();
+        crateLocationManager.load();
+        messageService.send(sender, "reloaded");
+    }
+
+    private void create(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.create")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates create <nazwa>"));
+            return;
+        }
+        if (crateManager.exists(args[1])) {
+            messageService.send(sender, "crate-exists", Map.of("%crate%", args[1]));
+            return;
+        }
+        Crate crate = crateManager.createCrate(args[1]);
+        messageService.send(sender, "crate-created", Map.of("%crate%", crate.getId()));
+        if (sender instanceof Player player) {
+            guiManager.openEdit(player, crate);
+        }
+    }
+
+    private void delete(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.create")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates delete <nazwa>"));
+            return;
+        }
+        if (crateManager.deleteCrate(args[1])) {
+            messageService.send(sender, "crate-deleted", Map.of("%crate%", args[1]));
+        } else {
+            messageService.send(sender, "crate-missing", Map.of("%crate%", args[1]));
+        }
+    }
+
+    private void spawnCrate(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            messageService.send(sender, "player-only");
+            return;
+        }
+        if (!has(sender, "abestcrates.create")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates spawncrate <nazwa>"));
+            return;
+        }
+        crateManager.getCrate(args[1]).ifPresentOrElse(crate -> {
+            crateLocationManager.placeCrate(player, crate);
+            messageService.send(sender, "crate-spawned", Map.of("%crate%", crate.getId()));
+        }, () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[1])));
+    }
+
+    private void edit(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            messageService.send(sender, "player-only");
+            return;
+        }
+        if (!has(sender, "abestcrates.admin")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates edit <nazwa>"));
+            return;
+        }
+        crateManager.getCrate(args[1]).ifPresentOrElse(crate -> guiManager.openEdit(player, crate),
+            () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[1])));
+    }
+
+    private void giveKey(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.givekey")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 4) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates givekey <gracz> <crate> <ilosc>"));
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            messageService.send(sender, "player-offline", Map.of("%player%", args[1]));
+            return;
+        }
+        int amount = parseAmount(args[3]);
+        crateManager.getCrate(args[2]).ifPresentOrElse(crate -> {
+            ItemStack key = keyManager.createPhysicalKey(crate, amount);
+            target.getInventory().addItem(key).values().forEach(item -> target.getWorld().dropItemNaturally(target.getLocation(), item));
+            messageService.send(sender, "key-given", Map.of("%player%", target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+        }, () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[2])));
+    }
+
+    private void addKeys(CommandSender sender, String[] args) {
+        changeVirtualKeys(sender, args, true);
+    }
+
+    private void removeKeys(CommandSender sender, String[] args) {
+        changeVirtualKeys(sender, args, false);
+    }
+
+    private void changeVirtualKeys(CommandSender sender, String[] args, boolean add) {
+        if (!has(sender, "abestcrates.givekey")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 4) {
+            String usage = add ? "/abestcrates addkeys <gracz> <crate> <ilosc>" : "/abestcrates removekeys <gracz> <crate> <ilosc>";
+            messageService.send(sender, "usage", Map.of("%usage%", usage));
+            return;
+        }
+
+        OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
+        int amount = parseAmount(args[3]);
+        crateManager.getCrate(args[2]).ifPresentOrElse(crate -> {
+            if (add) {
+                keyManager.addVirtualKeys(target, crate.getId(), amount);
+                messageService.send(sender, "virtual-keys-added", Map.of("%player%", target.getName() == null ? args[1] : target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+            } else {
+                keyManager.removeVirtualKeys(target.getUniqueId(), crate.getId(), amount);
+                messageService.send(sender, "virtual-keys-removed", Map.of("%player%", target.getName() == null ? args[1] : target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+            }
+        }, () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[2])));
+    }
+
+    private void forceOpen(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.open")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 3) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates forceopen <gracz> <crate>"));
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            messageService.send(sender, "player-offline", Map.of("%player%", args[1]));
+            return;
+        }
+        crateManager.getCrate(args[2]).ifPresentOrElse(crate -> openingService.forceOpen(target, crate),
+            () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[2])));
+    }
+
+    private void sendHelp(CommandSender sender) {
+        Arrays.asList(
+            "&5ABestCrates &7commands:",
+            "&f/abestcrates &8- &7Open GUI",
+            "&f/abestcrates create <nazwa>",
+            "&f/abestcrates delete <nazwa>",
+            "&f/abestcrates spawncrate <nazwa>",
+            "&f/abestcrates edit <nazwa>",
+            "&f/abestcrates givekey <gracz> <crate> <ilosc>",
+            "&f/abestcrates addkeys <gracz> <crate> <ilosc>",
+            "&f/abestcrates removekeys <gracz> <crate> <ilosc>",
+            "&f/abestcrates forceopen <gracz> <crate>",
+            "&f/abestcrates reload"
+        ).forEach(line -> sender.sendMessage(pl.admerpro.aBestCrates.util.ColorUtil.color(line)));
+    }
+
+    private boolean has(CommandSender sender, String permission) {
+        return sender.hasPermission("abestcrates.admin") || sender.hasPermission(permission);
+    }
+
+    private int parseAmount(String value) {
+        try {
+            return Math.max(1, Integer.parseInt(value));
+        } catch (NumberFormatException exception) {
+            return 1;
+        }
+    }
+
+    private List<String> crateNames() {
+        return crateManager.getCrates().stream().map(Crate::getId).toList();
+    }
+
+    private List<String> filter(List<String> values, String prefix) {
+        String normalizedPrefix = prefix.toLowerCase(Locale.ROOT);
+        List<String> result = new ArrayList<>();
+        for (String value : values) {
+            if (value.toLowerCase(Locale.ROOT).startsWith(normalizedPrefix)) {
+                result.add(value);
+            }
+        }
+        return result;
+    }
+}

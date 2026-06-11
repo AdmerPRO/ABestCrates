@@ -1,0 +1,33 @@
+name: ABestCrates
+description: Modern configurable crate system managed from GUI.
+version: '${project.version}'
+
+main: pl.admerpro.aBestCrates.Main
+api-version: '1.21'
+load: POSTWORLD
+
+authors: [ AdmerPRO ]
+commands:
+  abestcrates:
+    description: Main ABestCrates command.
+    usage: /abestcrates
+    aliases: [ acrates, abc ]
+permissions:
+  abestcrates.admin:
+    description: Full access to ABestCrates.
+    default: op
+  abestcrates.use:
+    description: Allows basic crate usage.
+    default: true
+  abestcrates.open:
+    description: Allows force opening crates.
+    default: op
+  abestcrates.create:
+    description: Allows creating, deleting and placing crates.
+    default: op
+  abestcrates.givekey:
+    description: Allows giving physical and virtual keys.
+    default: op
+  abestcrates.reload:
+    description: Allows reloading plugin files.
+    default: op
