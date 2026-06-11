@@ -1,9 +1,12 @@
 package pl.admerpro.aBestCrates.gui;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -11,6 +14,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -27,6 +32,13 @@ import pl.admerpro.aBestCrates.util.ColorUtil;
 import pl.admerpro.aBestCrates.util.ItemBuilder;
 
 public class GuiManager implements Listener {
+    private static final int SLOT_CRATE_BLOCK = 12;
+    private static final int SLOT_REWARD_NAME = 10;
+    private static final int SLOT_REWARD_DISPLAY_ITEM = 12;
+    private static final int SLOT_REWARD_DROP_ITEM = 14;
+    private static final int SLOT_REWARD_REAL_CHANCE = 16;
+    private static final int SLOT_REWARD_DISPLAY_CHANCE = 18;
+
     private final JavaPlugin plugin;
     private final CrateManager crateManager;
     private final KeyManager keyManager;
@@ -36,6 +48,7 @@ public class GuiManager implements Listener {
     private final MessageService messageService;
     private final NamespacedKey crateTag;
     private final NamespacedKey rewardTag;
+    private final Set<UUID> suppressedCloses = new HashSet<>();
     private final List<Material> blockCycle = List.of(
         Material.CHEST,
         Material.ENDER_CHEST,
@@ -69,7 +82,7 @@ public class GuiManager implements Listener {
         inventory.setItem(16, new ItemBuilder(Material.PAPER).name("&bStatistics").lore(List.of("&7Coming in a later module.")).build());
         inventory.setItem(22, new ItemBuilder(Material.REDSTONE).name("&cReload").lore(List.of("&7Reload files from disk.")).build());
 
-        player.openInventory(inventory);
+        openMenu(player, inventory);
     }
 
     public void openManage(Player player) {
@@ -95,7 +108,7 @@ public class GuiManager implements Listener {
         }
 
         inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
-        player.openInventory(inventory);
+        openMenu(player, inventory);
     }
 
     public void openEdit(Player player, Crate crate) {
@@ -104,7 +117,12 @@ public class GuiManager implements Listener {
         holder.setInventory(inventory);
 
         inventory.setItem(10, new ItemBuilder(Material.NAME_TAG).name("&dDisplay Name").lore(List.of("&f" + crate.getDisplayName(), "&7Click to edit in chat.")).build());
-        inventory.setItem(12, new ItemBuilder(crate.getBlockMaterial()).name("&6Block Type").lore(List.of("&f" + crate.getBlockMaterial().name(), "&7Click to cycle.")).build());
+        inventory.setItem(SLOT_CRATE_BLOCK, new ItemBuilder(crate.getBlockMaterial()).name("&6Block Type").lore(List.of(
+            "&f" + crate.getBlockMaterial().name(),
+            "&7Left click: set from hand/cursor.",
+            "&7Drag a block here to set it.",
+            "&7Right click: cycle default blocks."
+        )).build());
         inventory.setItem(14, new ItemBuilder(Material.OAK_SIGN).name("&bHologram").lore(hologramLore(crate)).build());
         inventory.setItem(16, new ItemBuilder(Material.DIAMOND).name("&aRewards").lore(List.of("&7Rewards: &f" + crate.getRewards().size(), "&7Click to manage.")).build());
         inventory.setItem(28, new ItemBuilder(Material.TRIPWIRE_HOOK).name("&eGive Test Key").lore(List.of("&7Gives one physical key to you.")).build());
@@ -113,7 +131,7 @@ public class GuiManager implements Listener {
         inventory.setItem(34, new ItemBuilder(Material.ENDER_EYE).name("&5Preview").lore(List.of("&7Open rewards preview.")).build());
         inventory.setItem(49, new ItemBuilder(Material.LIME_DYE).name("&aSave").lore(List.of("&7Save crate to disk.")).build());
 
-        player.openInventory(inventory);
+        openMenu(player, inventory);
     }
 
     public void openRewards(Player player, Crate crate) {
@@ -129,9 +147,42 @@ public class GuiManager implements Listener {
             inventory.setItem(slot++, tag(rewardDisplay(reward, true), rewardTag, reward.getId()));
         }
 
-        inventory.setItem(45, new ItemBuilder(Material.LIME_DYE).name("&aAdd Held Item").lore(List.of("&7Adds item from your main hand.", "&7Left click reward: set chances.", "&7Right click reward: delete.")).build());
+        inventory.setItem(45, new ItemBuilder(Material.LIME_DYE).name("&aAdd Held Item").lore(List.of("&7Adds item from your main hand.")).build());
         inventory.setItem(53, new ItemBuilder(Material.ARROW).name("&eBack").build());
-        player.openInventory(inventory);
+        openMenu(player, inventory);
+    }
+
+    public void openRewardEdit(Player player, Crate crate, Reward reward) {
+        MenuHolder holder = new MenuHolder(MenuType.REWARD_EDIT, crate.getId(), reward.getId());
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.color("&5Reward: &f" + reward.getId()));
+        holder.setInventory(inventory);
+
+        inventory.setItem(SLOT_REWARD_NAME, new ItemBuilder(Material.NAME_TAG).name("&dNazwa itemku w skrzyni").lore(List.of(
+            "&f" + rewardDisplayName(reward),
+            "&7Click to edit in chat."
+        )).build());
+        inventory.setItem(SLOT_REWARD_DISPLAY_ITEM, rewardEditorItem(reward.getDisplayItem(), Material.ITEM_FRAME, "&eDisplay Item", List.of(
+            "&7This item is shown in preview.",
+            "&7Left click: set from hand/cursor.",
+            "&7Drag an item here to set it."
+        )));
+        inventory.setItem(SLOT_REWARD_DROP_ITEM, rewardEditorItem(reward.getItemReward(), Material.CHEST_MINECART, "&aCo dropi", List.of(
+            "&7This item is given to player.",
+            "&7Left click: set from hand/cursor.",
+            "&7Drag an item here to set it."
+        )));
+        inventory.setItem(SLOT_REWARD_REAL_CHANCE, new ItemBuilder(Material.REDSTONE).name("&cReal Chance").lore(List.of(
+            "&f" + reward.getRealChance() + "%",
+            "&7Click to edit in chat."
+        )).build());
+        inventory.setItem(SLOT_REWARD_DISPLAY_CHANCE, new ItemBuilder(Material.GLOWSTONE_DUST).name("&6Display Chance").lore(List.of(
+            "&f" + reward.getDisplayChance() + "%",
+            "&7Click to edit in chat."
+        )).build());
+        inventory.setItem(49, new ItemBuilder(Material.LIME_DYE).name("&aSave").lore(List.of("&7Save reward to disk.")).build());
+        inventory.setItem(53, new ItemBuilder(Material.ARROW).name("&eBack").build());
+
+        openMenu(player, inventory);
     }
 
     public void openPreview(Player player, Crate crate) {
@@ -147,7 +198,7 @@ public class GuiManager implements Listener {
             inventory.setItem(slot++, rewardDisplay(reward, false));
         }
 
-        player.openInventory(inventory);
+        openMenu(player, inventory);
     }
 
     @EventHandler
@@ -163,11 +214,61 @@ public class GuiManager implements Listener {
         switch (holder.getType()) {
             case MAIN -> handleMain(player, event.getRawSlot());
             case MANAGE -> handleManage(player, event);
-            case EDIT -> handleEdit(player, holder, event.getRawSlot());
+            case EDIT -> handleEdit(player, holder, event);
             case REWARDS -> handleRewards(player, holder, event);
+            case REWARD_EDIT -> handleRewardEdit(player, holder, event);
             case PREVIEW -> {
             }
         }
+    }
+
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player) || !(event.getInventory().getHolder() instanceof MenuHolder holder)) {
+            return;
+        }
+
+        boolean touchesTopInventory = event.getRawSlots().stream().anyMatch(slot -> slot < event.getInventory().getSize());
+        if (!touchesTopInventory) {
+            return;
+        }
+        event.setCancelled(true);
+
+        if (holder.getType() == MenuType.EDIT && event.getRawSlots().contains(SLOT_CRATE_BLOCK)) {
+            crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> setCrateBlockFromItem(player, crate, event.getOldCursor()));
+            return;
+        }
+
+        if (holder.getType() == MenuType.REWARD_EDIT) {
+            Optional<Crate> optionalCrate = crateManager.getCrate(holder.getCrateId());
+            if (optionalCrate.isEmpty()) {
+                return;
+            }
+            Optional<Reward> optionalReward = optionalCrate.get().getReward(holder.getRewardId());
+            if (optionalReward.isEmpty()) {
+                return;
+            }
+
+            Reward reward = optionalReward.get();
+            if (event.getRawSlots().contains(SLOT_REWARD_DISPLAY_ITEM)) {
+                setRewardDisplayItem(player, optionalCrate.get(), reward, event.getOldCursor());
+            } else if (event.getRawSlots().contains(SLOT_REWARD_DROP_ITEM)) {
+                setRewardDropItem(player, optionalCrate.get(), reward, event.getOldCursor());
+            }
+        }
+    }
+
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player) || !(event.getInventory().getHolder() instanceof MenuHolder holder)) {
+            return;
+        }
+
+        if (suppressedCloses.remove(player.getUniqueId())) {
+            return;
+        }
+
+        Bukkit.getScheduler().runTask(plugin, () -> goBack(player, holder));
     }
 
     private void handleMain(Player player, int slot) {
@@ -202,26 +303,33 @@ public class GuiManager implements Listener {
             .ifPresent(crate -> openEdit(player, crate));
     }
 
-    private void handleEdit(Player player, MenuHolder holder, int slot) {
+    private void handleEdit(Player player, MenuHolder holder, InventoryClickEvent event) {
         Optional<Crate> optionalCrate = crateManager.getCrate(holder.getCrateId());
         if (optionalCrate.isEmpty()) {
+            suppressNextClose(player);
             player.closeInventory();
             return;
         }
         Crate crate = optionalCrate.get();
+        int slot = event.getRawSlot();
 
         switch (slot) {
-            case 10 -> chatInputManager.request(player, "&eWpisz nowy display name:", input -> {
+            case 10 -> requestChat(player, "&eWpisz nowy display name:", input -> {
                 crate.setDisplayName(input);
                 crateManager.save();
                 openEdit(player, crate);
             });
-            case 12 -> {
-                crate.setBlockMaterial(nextBlock(crate.getBlockMaterial()));
-                crateManager.save();
-                openEdit(player, crate);
+            case SLOT_CRATE_BLOCK -> {
+                if (event.isRightClick()) {
+                    crate.setBlockMaterial(nextBlock(crate.getBlockMaterial()));
+                    crateManager.save();
+                    openEdit(player, crate);
+                    return;
+                }
+                ItemStack sourceItem = selectedItem(player, event, true);
+                setCrateBlockFromItem(player, crate, sourceItem);
             }
-            case 14 -> chatInputManager.request(player, "&eWpisz linie hologramu oddzielone znakiem |:", input -> {
+            case 14 -> requestChat(player, "&eWpisz linie hologramu oddzielone znakiem |:", input -> {
                 crate.setHologram(List.of(input.split("\\|")));
                 crateManager.save();
                 openEdit(player, crate);
@@ -232,7 +340,7 @@ public class GuiManager implements Listener {
                     .forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
                 messageService.send(player, "key-given", Map.of("%player%", player.getName(), "%crate%", crate.getId(), "%amount%", "1"));
             }
-            case 30 -> chatInputManager.request(player, "&eWpisz wiadomosc braku klucza:", input -> {
+            case 30 -> requestChat(player, "&eWpisz wiadomosc braku klucza:", input -> {
                 crate.setNoKeyMessage(input);
                 crateManager.save();
                 openEdit(player, crate);
@@ -256,6 +364,7 @@ public class GuiManager implements Listener {
     private void handleRewards(Player player, MenuHolder holder, InventoryClickEvent event) {
         Optional<Crate> optionalCrate = crateManager.getCrate(holder.getCrateId());
         if (optionalCrate.isEmpty()) {
+            suppressNextClose(player);
             player.closeInventory();
             return;
         }
@@ -282,22 +391,56 @@ public class GuiManager implements Listener {
             return;
         }
 
-        crate.getReward(rewardId.get()).ifPresent(reward -> chatInputManager.request(player, "&eWpisz szanse jako real;display, np. 5;10:", input -> {
-            String[] parts = input.split(";");
-            if (parts.length >= 1) {
-                reward.setRealChance(parseDouble(parts[0], reward.getRealChance()));
-            }
-            if (parts.length >= 2) {
-                reward.setDisplayChance(parseDouble(parts[1], reward.getDisplayChance()));
-            }
-            crateManager.save();
+        crate.getReward(rewardId.get()).ifPresent(reward -> openRewardEdit(player, crate, reward));
+    }
+
+    private void handleRewardEdit(Player player, MenuHolder holder, InventoryClickEvent event) {
+        Optional<Crate> optionalCrate = crateManager.getCrate(holder.getCrateId());
+        if (optionalCrate.isEmpty()) {
+            suppressNextClose(player);
+            player.closeInventory();
+            return;
+        }
+        Crate crate = optionalCrate.get();
+        Optional<Reward> optionalReward = crate.getReward(holder.getRewardId());
+        if (optionalReward.isEmpty()) {
             openRewards(player, crate);
-        }));
+            return;
+        }
+        Reward reward = optionalReward.get();
+
+        switch (event.getRawSlot()) {
+            case SLOT_REWARD_NAME -> requestChat(player, "&eWpisz nazwe itemku w skrzyni:", input -> {
+                setRewardDisplayName(reward, input);
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case SLOT_REWARD_DISPLAY_ITEM -> setRewardDisplayItem(player, crate, reward, selectedItem(player, event, true));
+            case SLOT_REWARD_DROP_ITEM -> setRewardDropItem(player, crate, reward, selectedItem(player, event, false));
+            case SLOT_REWARD_REAL_CHANCE -> requestChat(player, "&eWpisz real chance, np. 5:", input -> {
+                reward.setRealChance(parseDouble(input, reward.getRealChance()));
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case SLOT_REWARD_DISPLAY_CHANCE -> requestChat(player, "&eWpisz display chance, np. 10:", input -> {
+                reward.setDisplayChance(parseDouble(input, reward.getDisplayChance()));
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case 49 -> {
+                crateManager.save();
+                messageService.send(player, "saved");
+                openRewardEdit(player, crate, reward);
+            }
+            case 53 -> openRewards(player, crate);
+            default -> {
+            }
+        }
     }
 
     private void addHeldItemReward(Player player, Crate crate) {
         ItemStack heldItem = player.getInventory().getItemInMainHand();
-        if (heldItem.getType() == Material.AIR) {
+        if (!isUsableItem(heldItem)) {
             messageService.send(player, "hold-item");
             return;
         }
@@ -312,7 +455,81 @@ public class GuiManager implements Listener {
         reward.setDisplayChance(reward.getRealChance());
         crate.addReward(reward);
         crateManager.save();
-        openRewards(player, crate);
+        openRewardEdit(player, crate, reward);
+    }
+
+    private void setCrateBlockFromItem(Player player, Crate crate, ItemStack itemStack) {
+        if (!isUsableItem(itemStack) || !itemStack.getType().isBlock()) {
+            messageService.send(player, "block-item-required");
+            return;
+        }
+
+        crate.setBlockMaterial(itemStack.getType());
+        crateManager.save();
+        messageService.send(player, "crate-block-updated", Map.of("%block%", itemStack.getType().name()));
+        openEdit(player, crate);
+    }
+
+    private void setRewardDisplayItem(Player player, Crate crate, Reward reward, ItemStack itemStack) {
+        if (!isUsableItem(itemStack)) {
+            messageService.send(player, "hold-item");
+            return;
+        }
+
+        ItemStack displayItem = itemStack.clone();
+        displayItem.setAmount(1);
+        reward.setDisplayItem(displayItem);
+        crateManager.save();
+        messageService.send(player, "reward-display-item-updated");
+        openRewardEdit(player, crate, reward);
+    }
+
+    private void setRewardDropItem(Player player, Crate crate, Reward reward, ItemStack itemStack) {
+        if (!isUsableItem(itemStack)) {
+            messageService.send(player, "hold-item");
+            return;
+        }
+
+        reward.setItemReward(itemStack.clone());
+        crateManager.save();
+        messageService.send(player, "reward-drop-item-updated");
+        openRewardEdit(player, crate, reward);
+    }
+
+    private void setRewardDisplayName(Reward reward, String name) {
+        ItemStack displayItem = reward.getDisplayItem();
+        if (displayItem == null || displayItem.getType() == Material.AIR) {
+            displayItem = reward.getItemReward();
+        }
+        if (displayItem == null || displayItem.getType() == Material.AIR) {
+            displayItem = new ItemStack(Material.PAPER);
+        }
+
+        ItemMeta meta = displayItem.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ColorUtil.color(name));
+            displayItem.setItemMeta(meta);
+        }
+        reward.setDisplayItem(displayItem);
+    }
+
+    private ItemStack selectedItem(Player player, InventoryClickEvent event, boolean singleItem) {
+        ItemStack source = isUsableItem(event.getCursor()) ? event.getCursor() : player.getInventory().getItemInMainHand();
+        if (!isUsableItem(source)) {
+            return null;
+        }
+
+        ItemStack copy = source.clone();
+        if (singleItem) {
+            copy.setAmount(1);
+        }
+        return copy;
+    }
+
+    private ItemStack rewardEditorItem(ItemStack source, Material fallback, String name, List<String> lore) {
+        ItemStack base = isUsableItem(source) ? source.clone() : new ItemStack(fallback);
+        base.setAmount(1);
+        return new ItemBuilder(base).name(name).lore(lore).hideFlags().build();
     }
 
     private ItemStack rewardDisplay(Reward reward, boolean editor) {
@@ -323,12 +540,20 @@ public class GuiManager implements Listener {
             lore.add("&7Real Chance: &f" + reward.getRealChance() + "%");
             lore.add("&7Rarity: &f" + reward.getRarity());
             lore.add("");
-            lore.add("&eLeft click to set chances.");
+            lore.add("&eLeft click to edit.");
             lore.add("&cRight click to delete.");
         } else {
             lore.add("&7Rarity: &f" + reward.getRarity());
         }
-        return new ItemBuilder(base).addLore("").lore(lore).hideFlags().build();
+        return new ItemBuilder(base).lore(lore).hideFlags().build();
+    }
+
+    private String rewardDisplayName(Reward reward) {
+        ItemStack displayItem = reward.getDisplayItem();
+        if (displayItem == null || !displayItem.hasItemMeta() || !displayItem.getItemMeta().hasDisplayName()) {
+            return "&7Not set";
+        }
+        return displayItem.getItemMeta().getDisplayName();
     }
 
     private List<String> hologramLore(Crate crate) {
@@ -346,6 +571,33 @@ public class GuiManager implements Listener {
         return blockCycle.get((index + 1) % blockCycle.size());
     }
 
+    private void requestChat(Player player, String prompt, java.util.function.Consumer<String> callback) {
+        suppressNextClose(player);
+        chatInputManager.request(player, prompt, callback);
+    }
+
+    private void openMenu(Player player, Inventory inventory) {
+        if (player.getOpenInventory().getTopInventory().getHolder() instanceof MenuHolder) {
+            suppressNextClose(player);
+        }
+        player.openInventory(inventory);
+    }
+
+    private void suppressNextClose(Player player) {
+        suppressedCloses.add(player.getUniqueId());
+    }
+
+    private void goBack(Player player, MenuHolder holder) {
+        switch (holder.getType()) {
+            case MANAGE -> openMain(player);
+            case EDIT -> openManage(player);
+            case REWARDS -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openEdit(player, crate));
+            case REWARD_EDIT -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openRewards(player, crate));
+            default -> {
+            }
+        }
+    }
+
     private ItemStack tag(ItemStack itemStack, NamespacedKey key, String value) {
         ItemMeta meta = itemStack.getItemMeta();
         if (meta != null) {
@@ -360,6 +612,10 @@ public class GuiManager implements Listener {
             return Optional.empty();
         }
         return Optional.ofNullable(itemStack.getItemMeta().getPersistentDataContainer().get(key, PersistentDataType.STRING));
+    }
+
+    private boolean isUsableItem(ItemStack itemStack) {
+        return itemStack != null && itemStack.getType() != Material.AIR;
     }
 
     private double parseDouble(String value, double fallback) {

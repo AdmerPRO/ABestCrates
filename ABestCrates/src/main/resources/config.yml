@@ -18,3 +18,7 @@ messages:
   reward-received: '&aWygrales &f%reward% &az &f%crate_displayname%&a.'
   reward-broadcast: '&5ABestCrates &8» &f%player% &7zdobyl &f%reward% &7z &f%crate_displayname%&7!'
   hold-item: '&cTrzymaj item w rece, aby dodac go jako nagrode.'
+  block-item-required: '&cTrzymaj blok w rece albo przeciagnij blok na slot.'
+  crate-block-updated: '&aUstawiono blok skrzynki na &f%block%&a.'
+  reward-display-item-updated: '&aZmieniono display item nagrody.'
+  reward-drop-item-updated: '&aZmieniono item dropiony przez nagrode.'

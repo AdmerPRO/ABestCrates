@@ -5,5 +5,6 @@ public enum MenuType {
     MANAGE,
     EDIT,
     REWARDS,
+    REWARD_EDIT,
     PREVIEW
 }
