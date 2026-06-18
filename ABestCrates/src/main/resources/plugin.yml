@@ -3,7 +3,7 @@ description: Modern configurable crate system managed from GUI.
 version: '${project.version}'
 
 main: pl.admerpro.aBestCrates.Main
-api-version: '1.21'
+api-version: '1.20'
 load: POSTWORLD
 
 authors: [ AdmerPRO ]

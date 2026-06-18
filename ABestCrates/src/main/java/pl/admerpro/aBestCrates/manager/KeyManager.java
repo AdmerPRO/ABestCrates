@@ -3,7 +3,6 @@ package pl.admerpro.aBestCrates.manager;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -21,7 +20,6 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.Crate;
@@ -105,9 +103,7 @@ public class KeyManager {
                     .toList()));
             }
             if (templateItem == null && definition.getCustomModelData() != null) {
-                CustomModelDataComponent customModelData = meta.getCustomModelDataComponent();
-                customModelData.setFloats(List.of(definition.getCustomModelData().floatValue()));
-                meta.setCustomModelDataComponent(customModelData);
+                meta.setCustomModelData(definition.getCustomModelData());
             }
             meta.getPersistentDataContainer().set(crateKey, PersistentDataType.STRING, crate.getId());
             if (definition.isGlow()) {
