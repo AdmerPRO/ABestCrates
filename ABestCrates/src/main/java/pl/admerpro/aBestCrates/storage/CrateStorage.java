@@ -2,12 +2,18 @@ package pl.admerpro.aBestCrates.storage;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.AnimationType;
@@ -16,6 +22,11 @@ import pl.admerpro.aBestCrates.model.KeyDefinition;
 import pl.admerpro.aBestCrates.model.Reward;
 
 public class CrateStorage {
+    private static final Pattern ITEM_STACK_START_PATTERN = Pattern.compile("^(\\s*)==:\\s*org\\.bukkit\\.inventory\\.ItemStack\\s*$");
+    private static final Pattern NAMESPACED_ITEM_ID_PATTERN = Pattern.compile("^(\\s*)id:\\s*minecraft:([a-z0-9_]+)\\s*$");
+    private static final Pattern ITEM_COUNT_PATTERN = Pattern.compile("^(\\s*)count:\\s*(\\d+)\\s*$");
+    private static final Pattern ITEM_VERSION_PATTERN = Pattern.compile("^\\s*(DataVersion|schema_version):\\s*.*$");
+
     private final JavaPlugin plugin;
     private final File file;
 
@@ -29,7 +40,7 @@ public class CrateStorage {
             return new ArrayList<>();
         }
 
-        YamlConfiguration configuration = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration configuration = loadConfiguration();
         ConfigurationSection cratesSection = configuration.getConfigurationSection("crates");
         if (cratesSection == null) {
             return new ArrayList<>();
@@ -137,8 +148,83 @@ public class CrateStorage {
     }
 
     private Material readMaterial(String value, Material fallback) {
-        Material material = value == null ? null : Material.matchMaterial(value);
+        Material material = value == null ? null : Material.matchMaterial(value, false);
         return material == null ? fallback : material;
+    }
+
+    private YamlConfiguration loadConfiguration() {
+        YamlConfiguration configuration = new YamlConfiguration();
+        try {
+            String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            configuration.loadFromString(normalizeSerializedItemStacks(content));
+        } catch (IOException | InvalidConfigurationException exception) {
+            plugin.getLogger().log(Level.SEVERE, "Could not load crates.yml.", exception);
+        }
+        return configuration;
+    }
+
+    private String normalizeSerializedItemStacks(String content) {
+        StringBuilder normalized = new StringBuilder(content.length());
+        String[] lines = content.split("\\R", -1);
+        int itemStackIndent = -1;
+        boolean appendedLine = false;
+        for (int index = 0; index < lines.length; index++) {
+            String line = lines[index];
+            if (itemStackIndent >= 0 && !line.isBlank() && indentation(line) <= itemStackIndent) {
+                itemStackIndent = -1;
+            }
+
+            Matcher itemStackMatcher = ITEM_STACK_START_PATTERN.matcher(line);
+            if (itemStackMatcher.matches()) {
+                itemStackIndent = itemStackMatcher.group(1).length();
+            }
+
+            if (itemStackIndent >= 0) {
+                line = normalizeSerializedItemStackLine(line);
+            }
+
+            if (line == null) {
+                continue;
+            }
+            if (appendedLine) {
+                normalized.append(System.lineSeparator());
+            }
+            normalized.append(line);
+            appendedLine = true;
+        }
+        return normalized.toString();
+    }
+
+    private String normalizeSerializedItemStackLine(String line) {
+        if (ITEM_VERSION_PATTERN.matcher(line).matches()) {
+            return null;
+        }
+
+        Matcher idMatcher = NAMESPACED_ITEM_ID_PATTERN.matcher(line);
+        if (idMatcher.matches()) {
+            return idMatcher.group(1) + "type: " + readSerializedMaterialName(idMatcher.group(2));
+        }
+
+        Matcher countMatcher = ITEM_COUNT_PATTERN.matcher(line);
+        if (countMatcher.matches()) {
+            return countMatcher.group(1) + "amount: " + countMatcher.group(2);
+        }
+
+        return line;
+    }
+
+    private String readSerializedMaterialName(String materialId) {
+        String materialName = materialId.toUpperCase(Locale.ROOT);
+        Material material = Material.matchMaterial(materialName, false);
+        return material == null ? Material.STONE.name() : material.name();
+    }
+
+    private int indentation(String line) {
+        int indentation = 0;
+        while (indentation < line.length() && Character.isWhitespace(line.charAt(indentation))) {
+            indentation++;
+        }
+        return indentation;
     }
 
     private <T extends Enum<T>> T readEnum(Class<T> enumClass, String value, T fallback) {

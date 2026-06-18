@@ -27,6 +27,8 @@ import pl.admerpro.aBestCrates.model.KeyDefinition;
 import pl.admerpro.aBestCrates.util.ColorUtil;
 
 public class KeyManager {
+    private static final NamespacedKey UNBREAKING_KEY = NamespacedKey.minecraft("unbreaking");
+
     private final JavaPlugin plugin;
     private final CrateManager crateManager;
     private final File file;
@@ -107,7 +109,10 @@ public class KeyManager {
             }
             meta.getPersistentDataContainer().set(crateKey, PersistentDataType.STRING, crate.getId());
             if (definition.isGlow()) {
-                meta.addEnchant(Enchantment.UNBREAKING, 1, true);
+                Enchantment unbreaking = getUnbreakingEnchantment();
+                if (unbreaking != null) {
+                    meta.addEnchant(unbreaking, 1, true);
+                }
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             }
             itemStack.setItemMeta(meta);
@@ -299,6 +304,11 @@ public class KeyManager {
     private String applyCratePlaceholders(String text, Crate crate) {
         return text.replace("%crate%", crate.getId())
             .replace("%crate_displayname%", crate.getDisplayName());
+    }
+
+    @SuppressWarnings("deprecation")
+    private Enchantment getUnbreakingEnchantment() {
+        return Enchantment.getByKey(UNBREAKING_KEY);
     }
 
     private String key(String crateId) {
