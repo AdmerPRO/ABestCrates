@@ -30,6 +30,7 @@ public class CrateLocationManager {
     private final File file;
     private final NamespacedKey hologramKey;
     private final Map<BlockKey, String> crateLocations = new HashMap<>();
+    private Runnable visualRefresh = () -> { };
 
     public CrateLocationManager(JavaPlugin plugin, CrateManager crateManager) {
         this.plugin = plugin;
@@ -74,6 +75,13 @@ public class CrateLocationManager {
     public void placeCrate(Player player, Crate crate) {
         Block block = player.getLocation().getBlock();
         block.setType(crate.getBlockMaterial());
+        linkCrateBlock(block, crate);
+    }
+
+    public void linkCrateBlock(Block block, Crate crate) {
+        if (block == null || crate == null) {
+            return;
+        }
         crateLocations.put(BlockKey.fromLocation(block.getLocation()), crate.getId());
         save();
         refreshHolograms();
@@ -160,6 +168,23 @@ public class CrateLocationManager {
             }
             crateManager.getCrate(entry.getValue()).ifPresent(crate -> spawnHologram(location, crate));
         }
+        visualRefresh.run();
+    }
+
+    public List<PlacedCrate> getPlacedCrates() {
+        List<PlacedCrate> placedCrates = new ArrayList<>();
+        for (Map.Entry<BlockKey, String> entry : crateLocations.entrySet()) {
+            Location location = entry.getKey().toLocation();
+            Crate crate = crateManager.getCrate(entry.getValue()).orElse(null);
+            if (location != null && crate != null) {
+                placedCrates.add(new PlacedCrate(location, crate));
+            }
+        }
+        return placedCrates;
+    }
+
+    public void setVisualRefresh(Runnable visualRefresh) {
+        this.visualRefresh = visualRefresh == null ? () -> { } : visualRefresh;
     }
 
     public void clearHolograms() {
@@ -234,6 +259,12 @@ public class CrateLocationManager {
         private Location toLocation() {
             World bukkitWorld = Bukkit.getWorld(world);
             return bukkitWorld == null ? null : new Location(bukkitWorld, x, y, z);
+        }
+    }
+
+    public record PlacedCrate(Location location, Crate crate) {
+        public PlacedCrate {
+            location = location.clone();
         }
     }
 }

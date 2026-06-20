@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Random;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.bukkit.Material;
 
 public class Crate {
@@ -16,6 +18,17 @@ public class Crate {
     private List<String> hologram = new ArrayList<>();
     private String noKeyMessage = "&cYou do not have a key for %crate_displayname%";
     private AnimationType animationType = AnimationType.INSTANT;
+    private CrateType crateType = CrateType.GAMBLE;
+    private ParticleEffectType particleEffect = ParticleEffectType.NONE;
+    private boolean virtualKeyDisplay = true;
+    private String permission = "";
+    private long cooldownSeconds;
+    private double openCost;
+    private boolean pushback;
+    private String previewTitle = "&5Preview: &f%crate_displayname%";
+    private String openingTitle = "&5Opening: &f%crate_displayname%";
+    private final List<KeyRequirement> keyRequirements = new ArrayList<>();
+    private final Map<Integer, String> milestones = new LinkedHashMap<>();
     private KeyDefinition keyDefinition = new KeyDefinition();
     private final List<Reward> rewards = new ArrayList<>();
 
@@ -84,6 +97,107 @@ public class Crate {
 
     public void setAnimationType(AnimationType animationType) {
         this.animationType = animationType == null ? AnimationType.INSTANT : animationType;
+    }
+
+    public CrateType getCrateType() {
+        return crateType;
+    }
+
+    public void setCrateType(CrateType crateType) {
+        this.crateType = crateType == null ? CrateType.GAMBLE : crateType;
+    }
+
+    public ParticleEffectType getParticleEffect() {
+        return particleEffect;
+    }
+
+    public void setParticleEffect(ParticleEffectType particleEffect) {
+        this.particleEffect = particleEffect == null ? ParticleEffectType.NONE : particleEffect;
+    }
+
+    public boolean isVirtualKeyDisplay() {
+        return virtualKeyDisplay;
+    }
+
+    public void setVirtualKeyDisplay(boolean virtualKeyDisplay) {
+        this.virtualKeyDisplay = virtualKeyDisplay;
+    }
+
+    public String getPermission() {
+        return permission;
+    }
+
+    public void setPermission(String permission) {
+        this.permission = permission == null ? "" : permission.trim();
+    }
+
+    public long getCooldownSeconds() {
+        return cooldownSeconds;
+    }
+
+    public void setCooldownSeconds(long cooldownSeconds) {
+        this.cooldownSeconds = Math.max(0L, cooldownSeconds);
+    }
+
+    public double getOpenCost() {
+        return openCost;
+    }
+
+    public void setOpenCost(double openCost) {
+        this.openCost = Math.max(0.0D, openCost);
+    }
+
+    public boolean isPushback() {
+        return pushback;
+    }
+
+    public void setPushback(boolean pushback) {
+        this.pushback = pushback;
+    }
+
+    public String getPreviewTitle() {
+        return previewTitle;
+    }
+
+    public void setPreviewTitle(String previewTitle) {
+        this.previewTitle = previewTitle == null || previewTitle.isBlank() ? "&5Preview: &f%crate_displayname%" : previewTitle;
+    }
+
+    public String getOpeningTitle() {
+        return openingTitle;
+    }
+
+    public void setOpeningTitle(String openingTitle) {
+        this.openingTitle = openingTitle == null || openingTitle.isBlank() ? "&5Opening: &f%crate_displayname%" : openingTitle;
+    }
+
+    public List<KeyRequirement> getKeyRequirements() {
+        if (keyRequirements.isEmpty()) {
+            return List.of(new KeyRequirement(id, 1));
+        }
+        return Collections.unmodifiableList(keyRequirements);
+    }
+
+    public void setKeyRequirements(List<KeyRequirement> requirements) {
+        keyRequirements.clear();
+        if (requirements != null) {
+            requirements.stream().filter(requirement -> requirement != null && !requirement.crateId().isBlank()).forEach(keyRequirements::add);
+        }
+    }
+
+    public Map<Integer, String> getMilestones() {
+        return Collections.unmodifiableMap(milestones);
+    }
+
+    public void setMilestones(Map<Integer, String> configuredMilestones) {
+        milestones.clear();
+        if (configuredMilestones != null) {
+            configuredMilestones.forEach((amount, rewardId) -> {
+                if (amount != null && amount > 0 && rewardId != null && !rewardId.isBlank()) {
+                    milestones.put(amount, rewardId);
+                }
+            });
+        }
     }
 
     public KeyDefinition getKeyDefinition() {

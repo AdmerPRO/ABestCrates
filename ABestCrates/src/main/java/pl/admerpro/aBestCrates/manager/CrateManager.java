@@ -9,6 +9,7 @@ import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.Crate;
+import pl.admerpro.aBestCrates.model.KeyRequirement;
 import pl.admerpro.aBestCrates.model.Reward;
 import pl.admerpro.aBestCrates.storage.CrateStorage;
 
@@ -77,6 +78,16 @@ public class CrateManager {
 
         crate.setId(normalizedNewId);
         crates.put(key(crate.getId()), crate);
+        for (Crate configuredCrate : crates.values()) {
+            boolean referencesRenamedCrate = configuredCrate.getKeyRequirements().stream()
+                .anyMatch(requirement -> requirement.crateId().equalsIgnoreCase(currentId));
+            if (referencesRenamedCrate) {
+                configuredCrate.setKeyRequirements(configuredCrate.getKeyRequirements().stream()
+                    .map(requirement -> requirement.crateId().equalsIgnoreCase(currentId)
+                        ? new KeyRequirement(normalizedNewId, requirement.amount()) : requirement)
+                    .toList());
+            }
+        }
         save();
         return Optional.of(crate);
     }

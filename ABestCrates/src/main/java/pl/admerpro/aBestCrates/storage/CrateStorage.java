@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -12,7 +14,10 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.AnimationType;
 import pl.admerpro.aBestCrates.model.Crate;
+import pl.admerpro.aBestCrates.model.CrateType;
 import pl.admerpro.aBestCrates.model.KeyDefinition;
+import pl.admerpro.aBestCrates.model.KeyRequirement;
+import pl.admerpro.aBestCrates.model.ParticleEffectType;
 import pl.admerpro.aBestCrates.model.Reward;
 
 public class CrateStorage {
@@ -49,6 +54,17 @@ public class CrateStorage {
             crate.setHologram(section.getStringList("hologram"));
             crate.setNoKeyMessage(section.getString("no-key-message", crate.getNoKeyMessage()));
             crate.setAnimationType(readEnum(AnimationType.class, section.getString("animation"), AnimationType.INSTANT));
+            crate.setCrateType(readEnum(CrateType.class, section.getString("type"), CrateType.GAMBLE));
+            crate.setParticleEffect(readEnum(ParticleEffectType.class, section.getString("particle-effect"), ParticleEffectType.NONE));
+            crate.setVirtualKeyDisplay(section.getBoolean("virtual-key-display", true));
+            crate.setPermission(section.getString("permission", ""));
+            crate.setCooldownSeconds(section.getLong("open-cooldown-seconds", 0L));
+            crate.setOpenCost(section.getDouble("open-cost", 0.0D));
+            crate.setPushback(section.getBoolean("pushback", false));
+            crate.setPreviewTitle(section.getString("preview.title", crate.getPreviewTitle()));
+            crate.setOpeningTitle(section.getString("opening.title", crate.getOpeningTitle()));
+            crate.setKeyRequirements(readKeyRequirements(section.getStringList("key-requirements")));
+            crate.setMilestones(readMilestones(section.getConfigurationSection("milestones")));
             crate.setKeyDefinition(readKey(section.getConfigurationSection("key")));
             readRewards(section.getConfigurationSection("rewards"), crate);
             crates.add(crate);
@@ -66,6 +82,18 @@ public class CrateStorage {
             configuration.set(path + "hologram", crate.getHologram());
             configuration.set(path + "no-key-message", crate.getNoKeyMessage());
             configuration.set(path + "animation", crate.getAnimationType().name());
+            configuration.set(path + "type", crate.getCrateType().name());
+            configuration.set(path + "particle-effect", crate.getParticleEffect().name());
+            configuration.set(path + "virtual-key-display", crate.isVirtualKeyDisplay());
+            configuration.set(path + "permission", crate.getPermission());
+            configuration.set(path + "open-cooldown-seconds", crate.getCooldownSeconds());
+            configuration.set(path + "open-cost", crate.getOpenCost());
+            configuration.set(path + "pushback", crate.isPushback());
+            configuration.set(path + "preview.title", crate.getPreviewTitle());
+            configuration.set(path + "opening.title", crate.getOpeningTitle());
+            configuration.set(path + "key-requirements", crate.getKeyRequirements().stream()
+                .map(requirement -> requirement.crateId() + ":" + requirement.amount()).toList());
+            crate.getMilestones().forEach((amount, rewardId) -> configuration.set(path + "milestones." + amount, rewardId));
 
             KeyDefinition key = crate.getKeyDefinition();
             configuration.set(path + "key.material", key.getMaterial().name());
@@ -79,12 +107,18 @@ public class CrateStorage {
                 String rewardPath = path + "rewards." + reward.getId() + ".";
                 configuration.set(rewardPath + "display-item", reward.getDisplayItem());
                 configuration.set(rewardPath + "item-reward", reward.getItemReward());
+                configuration.set(rewardPath + "item-rewards", reward.getItemRewards());
                 configuration.set(rewardPath + "commands", reward.getCommands());
                 configuration.set(rewardPath + "real-chance", reward.getRealChance());
                 configuration.set(rewardPath + "display-chance", reward.getDisplayChance());
                 configuration.set(rewardPath + "rarity", reward.getRarity());
                 configuration.set(rewardPath + "broadcast", reward.isBroadcast());
                 configuration.set(rewardPath + "fireworks", reward.isFireworks());
+                configuration.set(rewardPath + "weight", reward.getWeight());
+                configuration.set(rewardPath + "required-permissions", reward.getRequiredPermissions());
+                configuration.set(rewardPath + "blocked-permissions", reward.getBlockedPermissions());
+                configuration.set(rewardPath + "global-limit", reward.getGlobalLimit());
+                configuration.set(rewardPath + "player-limit", reward.getPlayerLimit());
             }
         }
 
@@ -126,14 +160,66 @@ public class CrateStorage {
             Reward reward = new Reward(rewardId);
             reward.setDisplayItem(rewardSection.getItemStack("display-item"));
             reward.setItemReward(rewardSection.getItemStack("item-reward"));
+            List<?> serializedItems = rewardSection.getList("item-rewards", List.of());
+            List<org.bukkit.inventory.ItemStack> itemRewards = serializedItems.stream()
+                .filter(org.bukkit.inventory.ItemStack.class::isInstance)
+                .map(org.bukkit.inventory.ItemStack.class::cast)
+                .toList();
+            if (!itemRewards.isEmpty()) {
+                reward.setItemRewards(itemRewards);
+            }
             reward.setCommands(rewardSection.getStringList("commands"));
             reward.setRealChance(rewardSection.getDouble("real-chance", 0.0D));
             reward.setDisplayChance(rewardSection.getDouble("display-chance", reward.getRealChance()));
             reward.setRarity(rewardSection.getString("rarity", "Common"));
             reward.setBroadcast(rewardSection.getBoolean("broadcast", false));
             reward.setFireworks(rewardSection.getBoolean("fireworks", false));
+            reward.setWeight(rewardSection.getDouble("weight", reward.getRealChance()));
+            reward.setRequiredPermissions(rewardSection.getStringList("required-permissions"));
+            reward.setBlockedPermissions(rewardSection.getStringList("blocked-permissions"));
+            reward.setGlobalLimit(rewardSection.getInt("global-limit", 0));
+            reward.setPlayerLimit(rewardSection.getInt("player-limit", 0));
             crate.addReward(reward);
         }
+    }
+
+    private List<KeyRequirement> readKeyRequirements(List<String> values) {
+        List<KeyRequirement> requirements = new ArrayList<>();
+        for (String value : values) {
+            String[] parts = value.split(":", 2);
+            if (parts[0].isBlank()) {
+                continue;
+            }
+            int amount = 1;
+            if (parts.length == 2) {
+                try {
+                    amount = Math.max(1, Integer.parseInt(parts[1]));
+                } catch (NumberFormatException ignored) {
+                    // Keep the safe default amount.
+                }
+            }
+            requirements.add(new KeyRequirement(parts[0], amount));
+        }
+        return requirements;
+    }
+
+    private Map<Integer, String> readMilestones(ConfigurationSection section) {
+        Map<Integer, String> milestones = new LinkedHashMap<>();
+        if (section == null) {
+            return milestones;
+        }
+        for (String key : section.getKeys(false)) {
+            try {
+                int amount = Integer.parseInt(key);
+                String rewardId = section.getString(key);
+                if (amount > 0 && rewardId != null && !rewardId.isBlank()) {
+                    milestones.put(amount, rewardId);
+                }
+            } catch (NumberFormatException ignored) {
+                // Ignore invalid milestone keys instead of rejecting the crate.
+            }
+        }
+        return milestones;
     }
 
     private Material readMaterial(String value, Material fallback) {
