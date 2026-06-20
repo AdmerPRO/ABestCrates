@@ -5,6 +5,7 @@ version: '${project.version}'
 main: pl.admerpro.aBestCrates.Main
 api-version: '1.20'
 load: POSTWORLD
+softdepend: [ Vault, PlaceholderAPI, Nexo, ItemsAdder, Oraxen, ExecutableItems, MMOItems ]
 
 authors: [ AdmerPRO ]
 commands:
@@ -30,4 +31,7 @@ permissions:
     default: op
   abestcrates.reload:
     description: Allows reloading plugin files.
+    default: op
+  abestcrates.crateitem:
+    description: Allows giving and placing linked crate items.
     default: op

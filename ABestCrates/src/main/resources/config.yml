@@ -30,3 +30,39 @@ messages:
   crate-block-updated: '&aSet crate block to &f%block%&a.'
   reward-display-item-updated: '&aUpdated the reward display item.'
   reward-drop-item-updated: '&aUpdated the dropped reward item.'
+  crate-item-given: '&aAdded a placeable &f%crate% &acrate item to your inventory.'
+  crate-items-given: '&aGave &f%amount%x %crate% &acrate items to &f%player%&a.'
+  crate-permission: '&cYou need permission &f%permission% &cto open this crate.'
+  open-cooldown: '&cWait &f%seconds%s &cbefore opening this crate again.'
+  economy-unavailable: '&cThis crate has a price, but Vault economy is unavailable.'
+  not-enough-money: '&cYou need &f%cost% &cto open this crate.'
+  open-cost-failed: '&cThe economy transaction could not be completed.'
+  mass-open-choose: '&cMass Open is unavailable for CHOOSE crates; select each reward separately.'
+  milestone-received: '&6Milestone &f%amount%&6! You received bonus reward &f%reward%&6.'
+
+# Each player sees only their own virtual key balance below a crate hologram.
+virtual-key-display:
+  enabled: true
+  line: '&eVirtual Keys: &f%keys%'
+  height: 1.05
+
+particles:
+  tick-interval: 2
+  view-distance: 32
+
+mass-open:
+  max-at-once: 1000
+
+# A reward's effective chance is: weight * rarity multiplier.
+# Names are case-insensitive and custom rarity names default to 1.0.
+rarities:
+  common:
+    multiplier: 1.0
+  uncommon:
+    multiplier: 0.75
+  rare:
+    multiplier: 0.45
+  epic:
+    multiplier: 0.2
+  legendary:
+    multiplier: 0.08

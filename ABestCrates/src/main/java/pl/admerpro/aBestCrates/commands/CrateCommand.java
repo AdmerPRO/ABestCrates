@@ -34,6 +34,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         "spawncrate",
         "edit",
         "givekey",
+        "givecrate",
         "addkeys",
         "removekeys",
         "forceopen"
@@ -75,6 +76,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             case "spawncrate" -> spawnCrate(sender, args);
             case "edit" -> edit(sender, args);
             case "givekey" -> giveKey(sender, args);
+            case "givecrate" -> giveCrate(sender, args);
             case "addkeys" -> addKeys(sender, args);
             case "removekeys" -> removeKeys(sender, args);
             case "forceopen" -> forceOpen(sender, args);
@@ -90,16 +92,16 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         }
 
         String subcommand = args[0].toLowerCase(Locale.ROOT);
-        if (args.length == 2 && List.of("givekey", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
+        if (args.length == 2 && List.of("givekey", "givecrate", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
             return filter(playerNames(), args[1]);
         }
         if (args.length == 2 && List.of("delete", "spawncrate", "edit").contains(subcommand)) {
             return filter(crateNames(), args[1]);
         }
-        if (args.length == 3 && List.of("givekey", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
+        if (args.length == 3 && List.of("givekey", "givecrate", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
             return filter(crateNames(), args[2]);
         }
-        if (args.length == 4 && List.of("givekey", "addkeys", "removekeys").contains(subcommand)) {
+        if (args.length == 4 && List.of("givekey", "givecrate", "addkeys", "removekeys").contains(subcommand)) {
             return filter(List.of("1", "2", "3", "5", "10"), args[3]);
         }
         return List.of();
@@ -239,9 +241,36 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         }
         int amount = parseAmount(args[3]);
         crateManager.getCrate(args[2]).ifPresentOrElse(crate -> {
-            ItemStack key = keyManager.createPhysicalKey(crate, amount);
-            target.getInventory().addItem(key).values().forEach(item -> target.getWorld().dropItemNaturally(target.getLocation(), item));
+            givePhysicalKeys(target, crate, amount);
             messageService.send(sender, "key-given", Map.of("%player%", target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+        }, () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[2])));
+    }
+
+    private void giveCrate(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.crateitem")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 4) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates givecrate <player> <crate> <amount>"));
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            messageService.send(sender, "player-offline", Map.of("%player%", args[1]));
+            return;
+        }
+        int amount = parseAmount(args[3]);
+        crateManager.getCrate(args[2]).ifPresentOrElse(crate -> {
+            int remaining = amount;
+            while (remaining > 0) {
+                int stackAmount = Math.min(crate.getBlockMaterial().getMaxStackSize(), remaining);
+                target.getInventory().addItem(keyManager.createCrateItem(crate, stackAmount)).values()
+                    .forEach(item -> target.getWorld().dropItemNaturally(target.getLocation(), item));
+                remaining -= stackAmount;
+            }
+            messageService.send(sender, "crate-items-given", Map.of(
+                "%player%", target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
         }, () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[2])));
     }
 
@@ -306,6 +335,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             "&f/abestcrates spawncrate <name>",
             "&f/abestcrates edit <name>",
             "&f/abestcrates givekey <player> <crate> <amount>",
+            "&f/abestcrates givecrate <player> <crate> <amount>",
             "&f/abestcrates addkeys <player> <crate> <amount>",
             "&f/abestcrates removekeys <player> <crate> <amount>",
             "&f/abestcrates forceopen <player> <crate>",
@@ -344,5 +374,16 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             }
         }
         return result;
+    }
+
+    private void givePhysicalKeys(Player target, Crate crate, int amount) {
+        int remaining = amount;
+        int maxStack = Math.max(1, crate.getKeyDefinition().getMaterial().getMaxStackSize());
+        while (remaining > 0) {
+            int stackAmount = Math.min(maxStack, remaining);
+            target.getInventory().addItem(keyManager.createPhysicalKey(crate, stackAmount)).values()
+                .forEach(item -> target.getWorld().dropItemNaturally(target.getLocation(), item));
+            remaining -= stackAmount;
+        }
     }
 }

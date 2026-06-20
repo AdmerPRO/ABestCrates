@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -25,6 +26,7 @@ import pl.admerpro.aBestCrates.manager.CrateLocationManager;
 import pl.admerpro.aBestCrates.manager.CrateManager;
 import pl.admerpro.aBestCrates.manager.KeyManager;
 import pl.admerpro.aBestCrates.model.Crate;
+import pl.admerpro.aBestCrates.model.KeyRequirement;
 import pl.admerpro.aBestCrates.model.Reward;
 import pl.admerpro.aBestCrates.service.MessageService;
 import pl.admerpro.aBestCrates.util.ColorUtil;
@@ -49,6 +51,7 @@ public class GuiManager implements Listener {
     private final MessageService messageService;
     private final NamespacedKey crateTag;
     private final NamespacedKey rewardTag;
+    private final NamespacedKey playerTag;
     private final Set<UUID> suppressedCloses = new HashSet<>();
     private final List<CrateColor> crateColors = List.of(
         new CrateColor("Dark Purple", "&5", Material.PURPLE_DYE),
@@ -77,6 +80,7 @@ public class GuiManager implements Listener {
         this.messageService = messageService;
         this.crateTag = new NamespacedKey(plugin, "gui_crate");
         this.rewardTag = new NamespacedKey(plugin, "gui_reward");
+        this.playerTag = new NamespacedKey(plugin, "gui_player");
     }
 
     public void openMain(Player player) {
@@ -86,8 +90,12 @@ public class GuiManager implements Listener {
 
         inventory.setItem(10, new ItemBuilder(Material.EMERALD).name("&aCreate Crate").lore(List.of("&7Create a new crate draft.")).build());
         inventory.setItem(12, new ItemBuilder(Material.CHEST).name("&dManage Crates").lore(List.of("&7Open crate editor list.")).build());
-        inventory.setItem(14, new ItemBuilder(Material.TRIPWIRE_HOOK).name("&eKeys").lore(List.of("&7Use commands to manage keys.", "&f/acrates givekey")).build());
-        inventory.setItem(16, new ItemBuilder(Material.PAPER).name("&bStatistics").lore(List.of("&7Coming in a later module.")).build());
+        inventory.setItem(14, new ItemBuilder(Material.TRIPWIRE_HOOK).name("&eGive Keys To").lore(List.of(
+            "&7Select key type, crate and player.",
+            "&7Enter the amount directly in chat.")).build());
+        inventory.setItem(16, new ItemBuilder(Material.WRITABLE_BOOK).name("&bLogs & Limits").lore(List.of(
+            "&7Reward rolls: &fplugins/ABestCrates/reward-rolls.log",
+            "&7Counts and limits: &fplayer-data.yml")).build());
         inventory.setItem(22, new ItemBuilder(Material.REDSTONE).name("&cReload").lore(List.of("&7Reload files from disk.")).build());
 
         openMenu(player, inventory);
@@ -144,6 +152,31 @@ public class GuiManager implements Listener {
         inventory.setItem(30, new ItemBuilder(Material.WRITABLE_BOOK).name("&cNo Key Message").lore(List.of("&f" + crate.getNoKeyMessage(), "&7Click to edit in chat.")).build());
         inventory.setItem(32, new ItemBuilder(Material.CLOCK).name("&dAnimation").lore(List.of("&f" + crate.getAnimationType().name(), "&7Click to cycle.")).build());
         inventory.setItem(34, new ItemBuilder(Material.ENDER_EYE).name("&5Preview").lore(List.of("&7Open rewards preview.")).build());
+        inventory.setItem(18, new ItemBuilder(crate.getCrateType() == pl.admerpro.aBestCrates.model.CrateType.CHOOSE
+            ? Material.LIME_GLAZED_TERRACOTTA : Material.RED_GLAZED_TERRACOTTA).name("&dCrate Type").lore(List.of(
+            "&7Current: &f" + crate.getCrateType().name(),
+            "&7GAMBLE rolls a weighted reward.",
+            "&7CHOOSE lets the player select one.")).build());
+        inventory.setItem(19, new ItemBuilder(Material.BLAZE_POWDER).name("&6Particle Effect").lore(List.of(
+            "&7Current: &f" + crate.getParticleEffect().name(), "&7Click to cycle effects.")).build());
+        inventory.setItem(20, new ItemBuilder(Material.EXPERIENCE_BOTTLE).name("&eVirtual Key Display").lore(List.of(
+            "&7Enabled: &f" + crate.isVirtualKeyDisplay(), "&7Shown per-player below the hologram.")).build());
+        inventory.setItem(21, new ItemBuilder(Material.IRON_DOOR).name("&cPermission Requirement").lore(List.of(
+            "&7Current: &f" + (crate.getPermission().isBlank() ? "none" : crate.getPermission()), "&7Click to edit.")).build());
+        inventory.setItem(23, new ItemBuilder(Material.CLOCK).name("&bOpen Cooldown").lore(List.of(
+            "&7Seconds: &f" + crate.getCooldownSeconds(), "&7Click to edit.")).build());
+        inventory.setItem(24, new ItemBuilder(Material.GOLD_INGOT).name("&6Open Cost").lore(List.of(
+            "&7Vault cost: &f" + crate.getOpenCost(), "&7Set 0 to disable.")).build());
+        inventory.setItem(25, new ItemBuilder(Material.SLIME_BALL).name("&aPushback").lore(List.of(
+            "&7Enabled: &f" + crate.isPushback(), "&7Pushes away players without access.")).build());
+        inventory.setItem(26, new ItemBuilder(Material.TRIPWIRE_HOOK).name("&eKey Requirements").lore(keyRequirementLore(crate)).build());
+        inventory.setItem(29, new ItemBuilder(Material.MAP).name("&bPreview GUI Title").lore(List.of(
+            "&f" + crate.getPreviewTitle(), "&7Click to edit.")).build());
+        inventory.setItem(31, new ItemBuilder(Material.PAINTING).name("&dOpening GUI Title").lore(List.of(
+            "&f" + crate.getOpeningTitle(), "&7Click to edit.")).build());
+        inventory.setItem(33, new ItemBuilder(Material.NETHER_STAR).name("&6Milestones").lore(milestoneLore(crate)).build());
+        inventory.setItem(46, new ItemBuilder(crate.getBlockMaterial()).name("&aGet Crate Item").lore(List.of(
+            "&7Gives a placeable linked crate item.")).build());
         inventory.setItem(49, new ItemBuilder(Material.LIME_DYE).name("&aSave").lore(List.of("&7Save crate to disk.")).build());
 
         openMenu(player, inventory);
@@ -194,6 +227,25 @@ public class GuiManager implements Listener {
             "&f" + reward.getDisplayChance() + "%",
             "&7Click to edit in chat."
         )).build());
+        inventory.setItem(18, new ItemBuilder(Material.AMETHYST_SHARD).name("&dRarity").lore(List.of(
+            "&7Current: &f" + reward.getRarity(), "&7Affects weight multiplier.")).build());
+        inventory.setItem(20, new ItemBuilder(Material.HEAVY_CORE).name("&bWeight").lore(List.of(
+            "&7Current: &f" + reward.getWeight(), "&7Auto-scaled against other rewards.")).build());
+        inventory.setItem(24, new ItemBuilder(Material.COMMAND_BLOCK).name("&eCommands").lore(List.of(
+            "&7Configured: &f" + reward.getCommands().size(), "&7Separate commands with |.")).build());
+        inventory.setItem(26, new ItemBuilder(Material.IRON_DOOR).name("&aRequired Permissions").lore(List.of(
+            "&7Configured: &f" + reward.getRequiredPermissions().size(), "&7Comma-separated; all are required.")).build());
+        inventory.setItem(28, new ItemBuilder(Material.BARRIER).name("&cBlocked Permissions").lore(List.of(
+            "&7Configured: &f" + reward.getBlockedPermissions().size(), "&7Comma-separated; any blocks reward.")).build());
+        inventory.setItem(30, new ItemBuilder(Material.BELL).name("&6Broadcast").lore(List.of(
+            "&7Enabled: &f" + reward.isBroadcast())).build());
+        inventory.setItem(32, new ItemBuilder(Material.FIREWORK_ROCKET).name("&dFireworks").lore(List.of(
+            "&7Enabled: &f" + reward.isFireworks())).build());
+        inventory.setItem(34, new ItemBuilder(Material.REPEATER).name("&cReward Limits").lore(List.of(
+            "&7Global: &f" + reward.getGlobalLimit(), "&7Per player: &f" + reward.getPlayerLimit(),
+            "&7Enter: global,player")).build());
+        inventory.setItem(36, new ItemBuilder(Material.BUNDLE).name("&aReward Items").lore(List.of(
+            "&7Items: &f" + reward.getItemRewards().size() + "/27", "&7Click to edit bundle.")).build());
         inventory.setItem(49, new ItemBuilder(Material.LIME_DYE).name("&aSave").lore(List.of("&7Save reward to disk.")).build());
         inventory.setItem(53, new ItemBuilder(Material.ARROW).name("&eBack").build());
 
@@ -206,7 +258,9 @@ public class GuiManager implements Listener {
 
     public void openPreview(Player player, Crate crate, boolean returnToSettings) {
         MenuHolder holder = new MenuHolder(MenuType.PREVIEW, crate.getId(), returnToSettings ? "settings" : null);
-        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Preview: &f" + ColorUtil.removeColor(crate.getDisplayName())));
+        String title = crate.getPreviewTitle().replace("%crate%", crate.getId())
+            .replace("%crate_displayname%", ColorUtil.removeColor(crate.getDisplayName()));
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component(title));
         holder.setInventory(inventory);
 
         int slot = 0;
@@ -220,12 +274,73 @@ public class GuiManager implements Listener {
         openMenu(player, inventory);
     }
 
+    public void openGiveKeyType(Player player) {
+        MenuHolder holder = new MenuHolder(MenuType.GIVE_KEY_TYPE, null);
+        Inventory inventory = Bukkit.createInventory(holder, 27, ColorUtil.component("&5Give Keys To"));
+        holder.setInventory(inventory);
+        inventory.setItem(11, new ItemBuilder(Material.TRIPWIRE_HOOK).name("&ePhysical Keys").lore(List.of(
+            "&7Give tradable key items.")).build());
+        inventory.setItem(15, new ItemBuilder(Material.ENDER_EYE).name("&dVirtual Keys").lore(List.of(
+            "&7Give account-bound virtual keys.")).build());
+        inventory.setItem(22, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        openMenu(player, inventory);
+    }
+
+    private void openGiveKeyCrates(Player player, String mode) {
+        MenuHolder holder = new MenuHolder(MenuType.GIVE_KEY_CRATE, mode);
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Select Crate"));
+        holder.setInventory(inventory);
+        int slot = 0;
+        for (Crate crate : crateManager.getCrates()) {
+            if (slot >= 45) {
+                break;
+            }
+            inventory.setItem(slot++, tag(new ItemBuilder(crate.getBlockMaterial()).name(crate.getDisplayName())
+                .lore(List.of("&7Technical: &f" + crate.getId(), "&eClick to select.")).build(), crateTag, crate.getId()));
+        }
+        inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        openMenu(player, inventory);
+    }
+
+    private void openGiveKeyPlayers(Player player, Crate crate, String mode) {
+        MenuHolder holder = new MenuHolder(MenuType.GIVE_KEY_PLAYER, crate.getId(), mode);
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Select Player"));
+        holder.setInventory(inventory);
+        int slot = 0;
+        for (Player target : Bukkit.getOnlinePlayers()) {
+            if (slot >= 45) {
+                break;
+            }
+            inventory.setItem(slot++, tag(new ItemBuilder(Material.PLAYER_HEAD).name("&f" + target.getName())
+                .lore(List.of("&eClick to select.")).build(), playerTag, target.getName()));
+        }
+        inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        openMenu(player, inventory);
+    }
+
+    private void openRewardItems(Player player, Crate crate, Reward reward) {
+        MenuHolder holder = new MenuHolder(MenuType.REWARD_ITEMS, crate.getId(), reward.getId());
+        Inventory inventory = Bukkit.createInventory(holder, 36, ColorUtil.component("&5Reward Items (max 27)"));
+        holder.setInventory(inventory);
+        List<ItemStack> items = reward.getItemRewards();
+        for (int index = 0; index < Math.min(27, items.size()); index++) {
+            inventory.setItem(index, items.get(index));
+        }
+        inventory.setItem(31, new ItemBuilder(Material.LIME_DYE).name("&aSave").build());
+        inventory.setItem(35, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        openMenu(player, inventory);
+    }
+
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player) || !(event.getInventory().getHolder() instanceof MenuHolder holder)) {
             return;
         }
         if (event.getRawSlot() < 0) {
+            return;
+        }
+        if (holder.getType() == MenuType.REWARD_ITEMS) {
+            handleRewardItemsClick(player, holder, event);
             return;
         }
         if (event.getRawSlot() >= event.getInventory().getSize()) {
@@ -242,7 +357,10 @@ public class GuiManager implements Listener {
             case EDIT -> handleEdit(player, holder, event);
             case REWARDS -> handleRewards(player, holder, event);
             case REWARD_EDIT -> handleRewardEdit(player, holder, event);
-            case PREVIEW -> {
+            case GIVE_KEY_TYPE -> handleGiveKeyType(player, event.getRawSlot());
+            case GIVE_KEY_CRATE -> handleGiveKeyCrate(player, holder, event);
+            case GIVE_KEY_PLAYER -> handleGiveKeyPlayer(player, holder, event);
+            case PREVIEW, OPENING, CHOOSE_OPEN, REWARD_ITEMS -> {
             }
         }
     }
@@ -255,6 +373,13 @@ public class GuiManager implements Listener {
 
         boolean touchesTopInventory = event.getRawSlots().stream().anyMatch(slot -> slot < event.getInventory().getSize());
         if (!touchesTopInventory) {
+            return;
+        }
+        if (holder.getType() == MenuType.REWARD_ITEMS) {
+            boolean onlyEditableSlots = event.getRawSlots().stream()
+                .filter(slot -> slot < event.getInventory().getSize())
+                .allMatch(slot -> slot < 27);
+            event.setCancelled(!onlyEditableSlots);
             return;
         }
         event.setCancelled(true);
@@ -294,6 +419,10 @@ public class GuiManager implements Listener {
             return;
         }
 
+        if (holder.getType() == MenuType.REWARD_ITEMS) {
+            saveRewardItems(holder, event.getInventory());
+        }
+
         if (suppressedCloses.remove(player.getUniqueId())) {
             return;
         }
@@ -309,6 +438,7 @@ public class GuiManager implements Listener {
                 openEdit(player, crate);
             }
             case 12 -> openManage(player);
+            case 14 -> openGiveKeyType(player);
             case 22 -> {
                 plugin.reloadConfig();
                 crateManager.load();
@@ -332,6 +462,89 @@ public class GuiManager implements Listener {
         readTag(event.getCurrentItem(), crateTag)
             .flatMap(crateManager::getCrate)
             .ifPresent(crate -> openEdit(player, crate));
+    }
+
+    private void handleGiveKeyType(Player player, int slot) {
+        switch (slot) {
+            case 11 -> openGiveKeyCrates(player, "physical");
+            case 15 -> openGiveKeyCrates(player, "virtual");
+            case 22 -> openMain(player);
+            default -> { }
+        }
+    }
+
+    private void handleGiveKeyCrate(Player player, MenuHolder holder, InventoryClickEvent event) {
+        if (event.getRawSlot() == 49) {
+            openGiveKeyType(player);
+            return;
+        }
+        readTag(event.getCurrentItem(), crateTag).flatMap(crateManager::getCrate)
+            .ifPresent(crate -> openGiveKeyPlayers(player, crate, holder.getCrateId()));
+    }
+
+    private void handleGiveKeyPlayer(Player player, MenuHolder holder, InventoryClickEvent event) {
+        if (event.getRawSlot() == 49) {
+            crateManager.getCrate(holder.getCrateId())
+                .ifPresent(crate -> openGiveKeyCrates(player, holder.getRewardId()));
+            return;
+        }
+        String targetName = readTag(event.getCurrentItem(), playerTag).orElse(null);
+        Player target = targetName == null ? null : Bukkit.getPlayerExact(targetName);
+        Crate crate = crateManager.getCrate(holder.getCrateId()).orElse(null);
+        if (target == null || crate == null) {
+            return;
+        }
+        requestChat(player, "&eEnter the number of keys to give:", input -> {
+            int amount = Math.max(1, parsePositiveInt(input, 1));
+            if ("virtual".equalsIgnoreCase(holder.getRewardId())) {
+                keyManager.addVirtualKeys(target, crate.getId(), amount);
+                messageService.send(player, "virtual-keys-added", Map.of(
+                    "%player%", target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+            } else {
+                givePhysicalKeys(target, crate, amount);
+                messageService.send(player, "key-given", Map.of(
+                    "%player%", target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+            }
+            openMain(player);
+        });
+    }
+
+    private void handleRewardItemsClick(Player player, MenuHolder holder, InventoryClickEvent event) {
+        int rawSlot = event.getRawSlot();
+        int topSize = event.getView().getTopInventory().getSize();
+        if (rawSlot < 27) {
+            return;
+        }
+        if (rawSlot >= topSize) {
+            if (event.isShiftClick()) {
+                event.setCancelled(true);
+            }
+            return;
+        }
+        event.setCancelled(true);
+        if (rawSlot != 31 && rawSlot != 35) {
+            return;
+        }
+        saveRewardItems(holder, event.getView().getTopInventory());
+        crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
+            crate.getReward(holder.getRewardId()).ifPresent(reward -> openRewardEdit(player, crate, reward)));
+    }
+
+    private void saveRewardItems(MenuHolder holder, Inventory inventory) {
+        Crate crate = crateManager.getCrate(holder.getCrateId()).orElse(null);
+        Reward reward = crate == null ? null : crate.getReward(holder.getRewardId()).orElse(null);
+        if (reward == null) {
+            return;
+        }
+        List<ItemStack> items = new ArrayList<>();
+        for (int slot = 0; slot < 27; slot++) {
+            ItemStack item = inventory.getItem(slot);
+            if (isUsableItem(item)) {
+                items.add(item.clone());
+            }
+        }
+        reward.setItemRewards(items);
+        crateManager.save();
     }
 
     private void handleEdit(Player player, MenuHolder holder, InventoryClickEvent event) {
@@ -391,6 +604,66 @@ public class GuiManager implements Listener {
                 openEdit(player, crate);
             }
             case 34 -> openPreview(player, crate, true);
+            case 18 -> {
+                crate.setCrateType(crate.getCrateType().next());
+                crateManager.save();
+                openEdit(player, crate);
+            }
+            case 19 -> {
+                crate.setParticleEffect(crate.getParticleEffect().next());
+                crateManager.save();
+                openEdit(player, crate);
+            }
+            case 20 -> {
+                crate.setVirtualKeyDisplay(!crate.isVirtualKeyDisplay());
+                saveAndRefreshHolograms();
+                openEdit(player, crate);
+            }
+            case 21 -> requestChat(player, "&eEnter permission or 'none':", input -> {
+                crate.setPermission(input.equalsIgnoreCase("none") ? "" : input);
+                crateManager.save();
+                openEdit(player, crate);
+            });
+            case 23 -> requestChat(player, "&eEnter cooldown in seconds (0 disables):", input -> {
+                crate.setCooldownSeconds(parsePositiveLong(input, 0L));
+                crateManager.save();
+                openEdit(player, crate);
+            });
+            case 24 -> requestChat(player, "&eEnter Vault open cost (0 disables):", input -> {
+                crate.setOpenCost(parseDouble(input, crate.getOpenCost()));
+                crateManager.save();
+                openEdit(player, crate);
+            });
+            case 25 -> {
+                crate.setPushback(!crate.isPushback());
+                crateManager.save();
+                openEdit(player, crate);
+            }
+            case 26 -> requestChat(player, "&eEnter requirements: crate:amount,crate2:amount", input -> {
+                crate.setKeyRequirements(parseKeyRequirements(input));
+                crateManager.save();
+                openEdit(player, crate);
+            });
+            case 29 -> requestChat(player, "&eEnter preview title:", input -> {
+                crate.setPreviewTitle(input);
+                crateManager.save();
+                openEdit(player, crate);
+            });
+            case 31 -> requestChat(player, "&eEnter opening GUI title:", input -> {
+                crate.setOpeningTitle(input);
+                crateManager.save();
+                openEdit(player, crate);
+            });
+            case 33 -> requestChat(player, "&eEnter milestones: amount:rewardId,amount:rewardId", input -> {
+                crate.setMilestones(parseMilestones(input));
+                crateManager.save();
+                openEdit(player, crate);
+            });
+            case 46 -> {
+                player.getInventory().addItem(keyManager.createCrateItem(crate, 1)).values()
+                    .forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
+                messageService.send(player, "crate-item-given", Map.of("%crate%", crate.getId()));
+            }
             case 49 -> {
                 crateManager.save();
                 messageService.send(player, "saved");
@@ -467,6 +740,51 @@ public class GuiManager implements Listener {
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
+            case 18 -> requestChat(player, "&eEnter rarity name:", input -> {
+                reward.setRarity(input);
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case 20 -> requestChat(player, "&eEnter reward weight:", input -> {
+                reward.setWeight(parseDouble(input, reward.getWeight()));
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case 24 -> requestChat(player, "&eEnter commands separated with | (or none):", input -> {
+                reward.setCommands(parseList(input, "\\|"));
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case 26 -> requestChat(player, "&eEnter required permissions separated with commas (or none):", input -> {
+                reward.setRequiredPermissions(parseList(input, ","));
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case 28 -> requestChat(player, "&eEnter blocked permissions separated with commas (or none):", input -> {
+                reward.setBlockedPermissions(parseList(input, ","));
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case 30 -> {
+                reward.setBroadcast(!reward.isBroadcast());
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            }
+            case 32 -> {
+                reward.setFireworks(!reward.isFireworks());
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            }
+            case 34 -> requestChat(player, "&eEnter limits as global,player (0 disables):", input -> {
+                String[] values = input.split(",", 2);
+                reward.setGlobalLimit(parsePositiveInt(values[0], reward.getGlobalLimit()));
+                if (values.length > 1) {
+                    reward.setPlayerLimit(parsePositiveInt(values[1], reward.getPlayerLimit()));
+                }
+                crateManager.save();
+                openRewardEdit(player, crate, reward);
+            });
+            case 36 -> openRewardItems(player, crate, reward);
             case 49 -> {
                 crateManager.save();
                 messageService.send(player, "saved");
@@ -672,6 +990,77 @@ public class GuiManager implements Listener {
         return lore;
     }
 
+    private List<String> keyRequirementLore(Crate crate) {
+        List<String> lore = new ArrayList<>();
+        for (KeyRequirement requirement : crate.getKeyRequirements()) {
+            lore.add("&7" + requirement.crateId() + ": &f" + requirement.amount());
+        }
+        lore.add("");
+        lore.add("&7Click to edit: crate:amount,...");
+        return lore;
+    }
+
+    private List<String> milestoneLore(Crate crate) {
+        List<String> lore = new ArrayList<>();
+        crate.getMilestones().forEach((amount, rewardId) -> lore.add("&7" + amount + " opens: &f" + rewardId));
+        if (crate.getMilestones().isEmpty()) {
+            lore.add("&7No milestones configured.");
+        }
+        lore.add("");
+        lore.add("&7Click to edit.");
+        return lore;
+    }
+
+    private List<KeyRequirement> parseKeyRequirements(String input) {
+        List<KeyRequirement> requirements = new ArrayList<>();
+        if (input.equalsIgnoreCase("none")) {
+            return requirements;
+        }
+        for (String entry : input.split(",")) {
+            String[] values = entry.trim().split(":", 2);
+            if (!values[0].isBlank()) {
+                requirements.add(new KeyRequirement(values[0], values.length > 1 ? parsePositiveInt(values[1], 1) : 1));
+            }
+        }
+        return requirements;
+    }
+
+    private Map<Integer, String> parseMilestones(String input) {
+        Map<Integer, String> milestones = new LinkedHashMap<>();
+        if (input.equalsIgnoreCase("none")) {
+            return milestones;
+        }
+        for (String entry : input.split(",")) {
+            String[] values = entry.trim().split(":", 2);
+            if (values.length == 2) {
+                int amount = parsePositiveInt(values[0], 0);
+                if (amount > 0 && !values[1].isBlank()) {
+                    milestones.put(amount, values[1].trim());
+                }
+            }
+        }
+        return milestones;
+    }
+
+    private List<String> parseList(String input, String separatorRegex) {
+        if (input.equalsIgnoreCase("none") || input.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(input.split(separatorRegex)).map(String::trim)
+            .filter(value -> !value.isBlank()).toList();
+    }
+
+    private void givePhysicalKeys(Player target, Crate crate, int requestedAmount) {
+        int remaining = Math.max(1, requestedAmount);
+        int maxStack = Math.max(1, crate.getKeyDefinition().getMaterial().getMaxStackSize());
+        while (remaining > 0) {
+            int amount = Math.min(maxStack, remaining);
+            target.getInventory().addItem(keyManager.createPhysicalKey(crate, amount)).values()
+                .forEach(item -> target.getWorld().dropItemNaturally(target.getLocation(), item));
+            remaining -= amount;
+        }
+    }
+
     private Material nextBlock(Material current) {
         int index = blockCycle.indexOf(current);
         if (index < 0) {
@@ -729,11 +1118,16 @@ public class GuiManager implements Listener {
             case EDIT -> openManage(player);
             case REWARDS -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openEdit(player, crate));
             case REWARD_EDIT -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openRewards(player, crate));
+            case REWARD_ITEMS -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
+                crate.getReward(holder.getRewardId()).ifPresent(reward -> openRewardEdit(player, crate, reward)));
             case PREVIEW -> {
                 if ("settings".equals(holder.getRewardId())) {
                     crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openEdit(player, crate));
                 }
             }
+            case GIVE_KEY_TYPE -> openMain(player);
+            case GIVE_KEY_CRATE -> openGiveKeyType(player);
+            case GIVE_KEY_PLAYER -> openGiveKeyCrates(player, holder.getRewardId());
             default -> {
             }
         }
@@ -751,8 +1145,15 @@ public class GuiManager implements Listener {
             case REWARDS -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> openRewards(player, crate));
             case REWARD_EDIT -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
                 crate.getReward(holder.getRewardId()).ifPresent(reward -> openRewardEdit(player, crate, reward)));
+            case REWARD_ITEMS -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
+                crate.getReward(holder.getRewardId()).ifPresent(reward -> openRewardItems(player, crate, reward)));
             case PREVIEW -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
                 openPreview(player, crate, "settings".equals(holder.getRewardId())));
+            case GIVE_KEY_TYPE -> openGiveKeyType(player);
+            case GIVE_KEY_CRATE -> openGiveKeyCrates(player, holder.getCrateId());
+            case GIVE_KEY_PLAYER -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
+                openGiveKeyPlayers(player, crate, holder.getRewardId()));
+            case OPENING, CHOOSE_OPEN -> { }
         }
     }
 
@@ -779,6 +1180,22 @@ public class GuiManager implements Listener {
     private double parseDouble(String value, double fallback) {
         try {
             return Math.max(0.0D, Double.parseDouble(value.replace(",", ".").trim()));
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
+    private int parsePositiveInt(String value, int fallback) {
+        try {
+            return Math.max(0, Integer.parseInt(value.trim()));
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
+    private long parsePositiveLong(String value, long fallback) {
+        try {
+            return Math.max(0L, Long.parseLong(value.trim()));
         } catch (NumberFormatException exception) {
             return fallback;
         }

@@ -24,6 +24,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.Crate;
 import pl.admerpro.aBestCrates.model.KeyDefinition;
+import pl.admerpro.aBestCrates.model.KeyRequirement;
 import pl.admerpro.aBestCrates.util.ColorUtil;
 
 public class KeyManager {
@@ -33,13 +34,16 @@ public class KeyManager {
     private final CrateManager crateManager;
     private final File file;
     private final NamespacedKey crateKey;
+    private final NamespacedKey crateItemKey;
     private final Map<UUID, Map<String, Integer>> virtualKeys = new HashMap<>();
+    private Runnable changeListener = () -> { };
 
     public KeyManager(JavaPlugin plugin, CrateManager crateManager) {
         this.plugin = plugin;
         this.crateManager = crateManager;
         this.file = new File(plugin.getDataFolder(), "virtual-keys.yml");
         this.crateKey = new NamespacedKey(plugin, "crate_id");
+        this.crateItemKey = new NamespacedKey(plugin, "crate_item_id");
     }
 
     public void load() {
@@ -120,6 +124,30 @@ public class KeyManager {
         return itemStack;
     }
 
+    public ItemStack createCrateItem(Crate crate, int amount) {
+        ItemStack itemStack = new ItemStack(crate.getBlockMaterial(), Math.max(1, amount));
+        ItemMeta meta = itemStack.getItemMeta();
+        if (meta != null) {
+            meta.displayName(ColorUtil.component(crate.getDisplayName()));
+            meta.lore(ColorUtil.components(List.of(
+                "&7Place this block to create",
+                "&7a linked crate zone.",
+                "&8Crate: &f" + crate.getId()
+            )));
+            meta.getPersistentDataContainer().set(crateItemKey, PersistentDataType.STRING, crate.getId());
+            itemStack.setItemMeta(meta);
+        }
+        return itemStack;
+    }
+
+    public Optional<String> getCrateIdFromCrateItem(ItemStack itemStack) {
+        if (itemStack == null || itemStack.getType().isAir() || !itemStack.hasItemMeta()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(itemStack.getItemMeta().getPersistentDataContainer()
+            .get(crateItemKey, PersistentDataType.STRING));
+    }
+
     public Optional<String> getCrateIdFromKey(ItemStack itemStack) {
         if (itemStack == null || itemStack.getType() == Material.AIR || !itemStack.hasItemMeta()) {
             return Optional.empty();
@@ -143,6 +171,52 @@ public class KeyManager {
         }
         removeVirtualKeys(player.getUniqueId(), crate.getId(), 1);
         return true;
+    }
+
+    public boolean hasRequiredKeys(Player player, Crate crate) {
+        Map<String, Integer> totals = requirementTotals(crate);
+        for (Map.Entry<String, Integer> entry : totals.entrySet()) {
+            Crate requiredCrate = crateManager.getCrate(entry.getKey()).orElse(null);
+            if (requiredCrate == null) {
+                return false;
+            }
+            int available = countPhysicalKeys(player, requiredCrate)
+                + getVirtualKeys(player.getUniqueId(), requiredCrate.getId());
+            if (available < entry.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean consumeRequiredKeys(Player player, Crate crate) {
+        if (!hasRequiredKeys(player, crate)) {
+            return false;
+        }
+        for (Map.Entry<String, Integer> entry : requirementTotals(crate).entrySet()) {
+            Crate requiredCrate = crateManager.getCrate(entry.getKey()).orElseThrow();
+            int physical = Math.min(entry.getValue(), countPhysicalKeys(player, requiredCrate));
+            consumePhysicalKeys(player, requiredCrate, physical);
+            int virtual = entry.getValue() - physical;
+            if (virtual > 0) {
+                removeVirtualKeys(player.getUniqueId(), requiredCrate.getId(), virtual);
+            }
+        }
+        changeListener.run();
+        return true;
+    }
+
+    public int countOpenable(Player player, Crate crate) {
+        int openable = Integer.MAX_VALUE;
+        for (Map.Entry<String, Integer> entry : requirementTotals(crate).entrySet()) {
+            Crate requiredCrate = crateManager.getCrate(entry.getKey()).orElse(null);
+            if (requiredCrate == null) {
+                return 0;
+            }
+            int keys = countPhysicalKeys(player, requiredCrate) + getVirtualKeys(player.getUniqueId(), requiredCrate.getId());
+            openable = Math.min(openable, keys / entry.getValue());
+        }
+        return openable == Integer.MAX_VALUE ? 0 : openable;
     }
 
     public int countPhysicalKeys(Player player, Crate crate) {
@@ -200,6 +274,7 @@ public class KeyManager {
         virtualKeys.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
             .merge(key(crateId), amount, Integer::sum);
         save();
+        changeListener.run();
     }
 
     public void removeVirtualKeys(UUID uuid, String crateId, int amount) {
@@ -211,6 +286,7 @@ public class KeyManager {
         int remaining = Math.max(0, playerKeys.getOrDefault(normalizedCrate, 0) - amount);
         playerKeys.put(normalizedCrate, remaining);
         save();
+        changeListener.run();
     }
 
     public boolean isKnownKey(ItemStack itemStack) {
@@ -243,16 +319,21 @@ public class KeyManager {
             playerKeys.remove(normalizedCrate);
         }
         save();
+        changeListener.run();
+    }
+
+    public void setChangeListener(Runnable changeListener) {
+        this.changeListener = changeListener == null ? () -> { } : changeListener;
     }
 
     public void renamePhysicalKeysForOnlinePlayers(String oldId, String newId) {
         for (Player player : Bukkit.getOnlinePlayers()) {
             ItemStack[] contents = player.getInventory().getStorageContents();
             for (ItemStack itemStack : contents) {
-                updatePhysicalKeyId(itemStack, oldId, newId);
+                updateTaggedItemId(itemStack, oldId, newId);
             }
             player.getInventory().setStorageContents(contents);
-            updatePhysicalKeyId(player.getInventory().getItemInOffHand(), oldId, newId);
+            updateTaggedItemId(player.getInventory().getItemInOffHand(), oldId, newId);
         }
     }
 
@@ -282,7 +363,7 @@ public class KeyManager {
         return true;
     }
 
-    private void updatePhysicalKeyId(ItemStack itemStack, String oldId, String newId) {
+    private void updateTaggedItemId(ItemStack itemStack, String oldId, String newId) {
         if (itemStack == null || !itemStack.hasItemMeta()) {
             return;
         }
@@ -292,12 +373,12 @@ public class KeyManager {
             return;
         }
 
-        String crateId = meta.getPersistentDataContainer().get(crateKey, PersistentDataType.STRING);
-        if (crateId == null || !crateId.equalsIgnoreCase(oldId)) {
-            return;
+        for (NamespacedKey key : List.of(crateKey, crateItemKey)) {
+            String crateId = meta.getPersistentDataContainer().get(key, PersistentDataType.STRING);
+            if (crateId != null && crateId.equalsIgnoreCase(oldId)) {
+                meta.getPersistentDataContainer().set(key, PersistentDataType.STRING, newId);
+            }
         }
-
-        meta.getPersistentDataContainer().set(crateKey, PersistentDataType.STRING, newId);
         itemStack.setItemMeta(meta);
     }
 
@@ -313,5 +394,13 @@ public class KeyManager {
 
     private String key(String crateId) {
         return crateId == null ? "" : crateId.toLowerCase(Locale.ROOT);
+    }
+
+    private Map<String, Integer> requirementTotals(Crate crate) {
+        Map<String, Integer> totals = new java.util.LinkedHashMap<>();
+        for (KeyRequirement requirement : crate.getKeyRequirements()) {
+            totals.merge(key(requirement.crateId()), requirement.amount(), Integer::sum);
+        }
+        return totals;
     }
 }
