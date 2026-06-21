@@ -152,6 +152,10 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates create <name>"));
             return;
         }
+        if (!Crate.isValidId(args[1])) {
+            messageService.send(sender, "crate-id-invalid");
+            return;
+        }
         if (crateManager.exists(args[1])) {
             messageService.send(sender, "crate-exists", Map.of("%crate%", args[1]));
             return;

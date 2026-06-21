@@ -5,6 +5,8 @@ target/
 .idea/
 .vscode/
 *.iml
+.m2-codex/
+.agents/
 
 # Logs
 *.log

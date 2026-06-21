@@ -11,6 +11,8 @@ import java.util.Map;
 import org.bukkit.Material;
 
 public class Crate {
+    private static final java.util.regex.Pattern VALID_ID =
+        java.util.regex.Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{0,31}");
     private String id;
     private String displayName;
     private String color = "&5";
@@ -41,7 +43,11 @@ public class Crate {
     }
 
     public static String normalizeId(String id) {
-        return id == null ? "" : id.trim().replace(" ", "_");
+        return id == null ? "" : id.trim();
+    }
+
+    public static boolean isValidId(String id) {
+        return VALID_ID.matcher(normalizeId(id)).matches();
     }
 
     public String getId() {

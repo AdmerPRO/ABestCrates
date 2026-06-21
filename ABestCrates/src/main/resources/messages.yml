@@ -1,4 +1,6 @@
 messages:
+  crate-id-invalid: "&cInvalid crate ID. Use 1-32 letters, digits, underscores or hyphens; start with a letter or digit."
+  opening-already-active: '&cFinish or skip your current crate opening first.'
   prefix: '&5ABestCrates &8> &7'
   no-permission: '&cYou do not have permission.'
   player-only: '&cOnly players can use this command.'

@@ -950,7 +950,7 @@ public class GuiManager implements Listener {
     private void renameCrate(Player player, Crate crate, String input) {
         String oldId = crate.getId();
         String newId = Crate.normalizeId(input);
-        if (newId.isBlank()) {
+        if (!Crate.isValidId(newId)) {
             messageService.send(player, "crate-rename-invalid");
             openEdit(player, crate);
             return;

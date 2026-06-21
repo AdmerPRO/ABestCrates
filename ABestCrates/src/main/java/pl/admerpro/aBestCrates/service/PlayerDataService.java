@@ -19,6 +19,9 @@ public class PlayerDataService {
     private final File dataFile;
     private final File logFile;
     private YamlConfiguration data;
+    private int batchDepth;
+    private boolean batchDirty;
+    private final StringBuilder batchedLog = new StringBuilder();
 
     public PlayerDataService(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -50,7 +53,7 @@ public class PlayerDataService {
         }
         data.set(playerPath(uuid) + ".cooldowns." + crate.getId().toLowerCase(),
             System.currentTimeMillis() + crate.getCooldownSeconds() * 1000L);
-        save();
+        markDirty();
     }
 
     public int recordOpen(UUID uuid, Crate crate) {
@@ -61,7 +64,7 @@ public class PlayerDataService {
         data.set(path + ".streak.amount", streak);
         String totalPath = path + ".opens." + crate.getId().toLowerCase();
         data.set(totalPath, data.getInt(totalPath, 0) + 1);
-        save();
+        markDirty();
         return streak;
     }
 
@@ -83,15 +86,59 @@ public class PlayerDataService {
         String playerRewardPath = playerPath(player.getUniqueId()) + ".rewards." + rewardKey;
         data.set(playerRewardPath, data.getInt(playerRewardPath, 0) + 1);
         data.set("global-rewards." + rewardKey, data.getInt("global-rewards." + rewardKey, 0) + 1);
-        save();
+        markDirty();
         appendLog(player, crate, reward);
+    }
+
+    public void beginBatch() {
+        batchDepth++;
+    }
+
+    public void endBatch() {
+        if (batchDepth <= 0) {
+            return;
+        }
+        batchDepth--;
+        if (batchDepth != 0) {
+            return;
+        }
+        if (batchDirty) {
+            batchDirty = false;
+            save();
+        }
+        flushLog();
     }
 
     private synchronized void appendLog(Player player, Crate crate, Reward reward) {
         String line = "%s player=%s uuid=%s crate=%s reward=%s%n".formatted(
             Instant.now(), player.getName(), player.getUniqueId(), crate.getId(), reward.getId());
+        if (batchDepth > 0) {
+            batchedLog.append(line);
+        } else {
+            writeLog(line);
+        }
+    }
+
+    private void markDirty() {
+        if (batchDepth > 0) {
+            batchDirty = true;
+        } else {
+            save();
+        }
+    }
+
+    private synchronized void flushLog() {
+        if (batchedLog.isEmpty()) {
+            return;
+        }
+        String content = batchedLog.toString();
+        batchedLog.setLength(0);
+        writeLog(content);
+    }
+
+    private void writeLog(String content) {
         try {
-            Files.writeString(logFile.toPath(), line, StandardCharsets.UTF_8,
+            Files.writeString(logFile.toPath(), content, StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException exception) {
             plugin.getLogger().log(Level.WARNING, "Could not append reward-rolls.log.", exception);

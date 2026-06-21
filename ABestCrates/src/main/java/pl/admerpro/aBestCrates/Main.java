@@ -5,6 +5,7 @@ import pl.admerpro.aBestCrates.commands.CrateCommand;
 import pl.admerpro.aBestCrates.gui.ChatInputManager;
 import pl.admerpro.aBestCrates.gui.GuiManager;
 import pl.admerpro.aBestCrates.integration.ABestCratesExpansion;
+import pl.admerpro.aBestCrates.integration.CustomItemIntegrationService;
 import pl.admerpro.aBestCrates.listeners.CrateListener;
 import pl.admerpro.aBestCrates.manager.CrateLocationManager;
 import pl.admerpro.aBestCrates.manager.CrateManager;
@@ -37,12 +38,13 @@ public final class Main extends JavaPlugin {
 
         messageService = new MessageService(this);
         crateManager = new CrateManager(this);
-        keyManager = new KeyManager(this, crateManager);
+        CustomItemIntegrationService customItems = new CustomItemIntegrationService(this);
+        keyManager = new KeyManager(this, crateManager, customItems);
         crateLocationManager = new CrateLocationManager(this, crateManager);
         playerDataService = new PlayerDataService(this);
         PlaceholderService placeholderService = new PlaceholderService(this, keyManager);
         openingService = new AdvancedOpeningService(this, keyManager, messageService, playerDataService,
-            new EconomyService(this), placeholderService);
+            new EconomyService(this), placeholderService, customItems);
         chatInputManager = new ChatInputManager(this);
         guiManager = new GuiManager(this, crateManager, keyManager, crateLocationManager, chatInputManager, messageService, openingService);
         visualService = new CrateVisualService(this, crateLocationManager, keyManager);
@@ -75,6 +77,9 @@ public final class Main extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (openingService != null) {
+            openingService.shutdown();
+        }
         if (crateManager != null) {
             crateManager.save();
         }

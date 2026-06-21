@@ -7,6 +7,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.logging.Level;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -44,8 +46,15 @@ public class CrateStorage {
         }
 
         List<Crate> crates = new ArrayList<>();
-        for (String crateId : cratesSection.getKeys(false)) {
-            ConfigurationSection section = cratesSection.getConfigurationSection(crateId);
+        Set<String> loadedIds = new HashSet<>();
+        for (String storedId : cratesSection.getKeys(false)) {
+            String crateId = storedId;
+            if (!Crate.isValidId(crateId) || loadedIds.contains(crateId.toLowerCase(java.util.Locale.ROOT))) {
+                crateId = migratedId(storedId, loadedIds);
+                plugin.getLogger().warning("Migrating invalid or duplicate crate id '" + storedId + "' to '" + crateId + "'.");
+            }
+            loadedIds.add(crateId.toLowerCase(java.util.Locale.ROOT));
+            ConfigurationSection section = cratesSection.getConfigurationSection(storedId);
             if (section == null) {
                 continue;
             }
@@ -69,7 +78,7 @@ public class CrateStorage {
             crate.setRewardRolls(section.getInt("reward-rolls", 1));
             crate.setKeyRequirements(readKeyRequirements(section.getStringList("key-requirements")));
             crate.setMilestones(readMilestones(section.getConfigurationSection("milestones")));
-            ConfigurationSection keySection = keysConfiguration.getConfigurationSection("keys." + crateId);
+            ConfigurationSection keySection = keysConfiguration.getConfigurationSection("keys." + storedId);
             crate.setKeyDefinition(readKey(keySection == null ? section.getConfigurationSection("key") : keySection));
             readRewards(section.getConfigurationSection("rewards"), crate);
             crates.add(crate);
@@ -234,6 +243,24 @@ public class CrateStorage {
     private Material readMaterial(String value, Material fallback) {
         Material material = value == null ? null : Material.matchMaterial(value);
         return material == null ? fallback : material;
+    }
+
+    private String migratedId(String source, Set<String> usedIds) {
+        String candidate = source == null ? "crate" : source.trim().replaceAll("[^A-Za-z0-9_-]", "_");
+        if (candidate.isBlank()) {
+            candidate = "crate";
+        }
+        if (!Character.isLetterOrDigit(candidate.charAt(0))) {
+            candidate = "crate_" + candidate;
+        }
+        candidate = candidate.substring(0, Math.min(32, candidate.length()));
+        String base = candidate;
+        int suffix = 2;
+        while (usedIds.contains(candidate.toLowerCase(java.util.Locale.ROOT))) {
+            String ending = "_" + suffix++;
+            candidate = base.substring(0, Math.min(base.length(), 32 - ending.length())) + ending;
+        }
+        return candidate;
     }
 
     private <T extends Enum<T>> T readEnum(Class<T> enumClass, String value, T fallback) {

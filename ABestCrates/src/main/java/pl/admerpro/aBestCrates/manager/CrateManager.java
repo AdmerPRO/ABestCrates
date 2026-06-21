@@ -45,7 +45,11 @@ public class CrateManager {
     }
 
     public Crate createCrate(String id) {
-        Crate crate = new Crate(Crate.normalizeId(id));
+        String normalizedId = Crate.normalizeId(id);
+        if (!Crate.isValidId(normalizedId) || exists(normalizedId)) {
+            throw new IllegalArgumentException("Invalid or duplicate crate id: " + id);
+        }
+        Crate crate = new Crate(normalizedId);
         Reward reward = new Reward("default");
         reward.setDisplayItem(new ItemStack(Material.DIAMOND));
         reward.setItemReward(new ItemStack(Material.DIAMOND));
@@ -67,7 +71,7 @@ public class CrateManager {
 
     public Optional<Crate> renameCrate(String currentId, String newId) {
         String normalizedNewId = Crate.normalizeId(newId);
-        if (normalizedNewId.isBlank() || exists(normalizedNewId)) {
+        if (!Crate.isValidId(normalizedNewId) || exists(normalizedNewId)) {
             return Optional.empty();
         }
 
