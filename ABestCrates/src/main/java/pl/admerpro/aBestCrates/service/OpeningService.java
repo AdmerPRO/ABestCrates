@@ -162,8 +162,8 @@ public class OpeningService {
 
         int iterations = switch (crate.getAnimationType()) {
             case FAST -> 10;
-            case CLASSIC -> 16;
             case INSTANT -> 0;
+            default -> 16;
         };
         long period = crate.getAnimationType() == AnimationType.FAST ? 1L : 2L;
         List<ItemStack> animationItems = displayItems;

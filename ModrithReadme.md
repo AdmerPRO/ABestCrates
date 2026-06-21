@@ -11,7 +11,10 @@ ABestCrates is a modern, GUI-first crates plugin for Paper servers. It lets serv
 - Item bundles (up to 27 items), unlimited commands, or mixed rewards
 - GAMBLE crates with weighted rolls and CHOOSE crates with selectable rewards
 - Custom preview and opening titles per crate
-- Classic, fast, and instant opening animations
+- Roll/CSGO, Casino, Cosmic, Roulette, Wheel, Wonder, classic, fast, and instant animations
+- Progressive Roll slowdown, configurable sounds, and up to 9 animated rewards per opening
+- Centered paginated previews with Open and Open All buttons
+- Paginated crate/reward menus and drag-or-shift-click reward item editing
 - Display-name holograms above placed crates
 - Ring, spiral, helix, and Dyson Sphere particle effects
 - Custom crate block material
@@ -98,6 +101,7 @@ Admin commands:
 /abc spawncrate <name>
 /abc edit <name>
 /abc givekey <player> <crate> <amount>
+/abc giveall <crate> <amount> [physical|virtual]
 /abc givecrate <player> <crate> <amount>
 /abc addkeys <player> <crate> <amount>
 /abc removekeys <player> <crate> <amount>

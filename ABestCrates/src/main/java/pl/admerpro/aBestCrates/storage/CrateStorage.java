@@ -23,10 +23,12 @@ import pl.admerpro.aBestCrates.model.Reward;
 public class CrateStorage {
     private final JavaPlugin plugin;
     private final File file;
+    private final File keysFile;
 
     public CrateStorage(JavaPlugin plugin) {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "crates.yml");
+        this.keysFile = new File(plugin.getDataFolder(), "keys.yml");
     }
 
     public List<Crate> load() {
@@ -35,6 +37,7 @@ public class CrateStorage {
         }
 
         YamlConfiguration configuration = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration keysConfiguration = YamlConfiguration.loadConfiguration(keysFile);
         ConfigurationSection cratesSection = configuration.getConfigurationSection("crates");
         if (cratesSection == null) {
             return new ArrayList<>();
@@ -63,9 +66,11 @@ public class CrateStorage {
             crate.setPushback(section.getBoolean("pushback", false));
             crate.setPreviewTitle(section.getString("preview.title", crate.getPreviewTitle()));
             crate.setOpeningTitle(section.getString("opening.title", crate.getOpeningTitle()));
+            crate.setRewardRolls(section.getInt("reward-rolls", 1));
             crate.setKeyRequirements(readKeyRequirements(section.getStringList("key-requirements")));
             crate.setMilestones(readMilestones(section.getConfigurationSection("milestones")));
-            crate.setKeyDefinition(readKey(section.getConfigurationSection("key")));
+            ConfigurationSection keySection = keysConfiguration.getConfigurationSection("keys." + crateId);
+            crate.setKeyDefinition(readKey(keySection == null ? section.getConfigurationSection("key") : keySection));
             readRewards(section.getConfigurationSection("rewards"), crate);
             crates.add(crate);
         }
@@ -74,6 +79,7 @@ public class CrateStorage {
 
     public void save(Collection<Crate> crates) {
         YamlConfiguration configuration = new YamlConfiguration();
+        YamlConfiguration keysConfiguration = new YamlConfiguration();
         for (Crate crate : crates) {
             String path = "crates." + crate.getId() + ".";
             configuration.set(path + "display-name", crate.getDisplayName());
@@ -91,17 +97,19 @@ public class CrateStorage {
             configuration.set(path + "pushback", crate.isPushback());
             configuration.set(path + "preview.title", crate.getPreviewTitle());
             configuration.set(path + "opening.title", crate.getOpeningTitle());
+            configuration.set(path + "reward-rolls", crate.getRewardRolls());
             configuration.set(path + "key-requirements", crate.getKeyRequirements().stream()
                 .map(requirement -> requirement.crateId() + ":" + requirement.amount()).toList());
             crate.getMilestones().forEach((amount, rewardId) -> configuration.set(path + "milestones." + amount, rewardId));
 
             KeyDefinition key = crate.getKeyDefinition();
-            configuration.set(path + "key.material", key.getMaterial().name());
-            configuration.set(path + "key.display-name", key.getDisplayName());
-            configuration.set(path + "key.lore", key.getLore());
-            configuration.set(path + "key.glow", key.isGlow());
-            configuration.set(path + "key.custom-model-data", key.getCustomModelData());
-            configuration.set(path + "key.template-item", key.getTemplateItem());
+            String keyPath = "keys." + crate.getId() + ".";
+            keysConfiguration.set(keyPath + "material", key.getMaterial().name());
+            keysConfiguration.set(keyPath + "display-name", key.getDisplayName());
+            keysConfiguration.set(keyPath + "lore", key.getLore());
+            keysConfiguration.set(keyPath + "glow", key.isGlow());
+            keysConfiguration.set(keyPath + "custom-model-data", key.getCustomModelData());
+            keysConfiguration.set(keyPath + "template-item", key.getTemplateItem());
 
             for (Reward reward : crate.getRewards()) {
                 String rewardPath = path + "rewards." + reward.getId() + ".";
@@ -124,6 +132,7 @@ public class CrateStorage {
 
         try {
             configuration.save(file);
+            keysConfiguration.save(keysFile);
         } catch (IOException exception) {
             plugin.getLogger().log(Level.SEVERE, "Could not save crates.yml.", exception);
         }
@@ -232,7 +241,8 @@ public class CrateStorage {
             return fallback;
         }
         try {
-            return Enum.valueOf(enumClass, value.toUpperCase());
+            String normalized = value.equalsIgnoreCase("WHELL") ? "WHEEL" : value.toUpperCase();
+            return Enum.valueOf(enumClass, normalized);
         } catch (IllegalArgumentException exception) {
             return fallback;
         }

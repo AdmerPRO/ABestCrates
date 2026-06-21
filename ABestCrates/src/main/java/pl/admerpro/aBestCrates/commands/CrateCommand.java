@@ -13,7 +13,6 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.gui.GuiManager;
 import pl.admerpro.aBestCrates.manager.CrateLocationManager;
@@ -34,6 +33,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         "spawncrate",
         "edit",
         "givekey",
+        "giveall",
         "givecrate",
         "addkeys",
         "removekeys",
@@ -76,6 +76,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             case "spawncrate" -> spawnCrate(sender, args);
             case "edit" -> edit(sender, args);
             case "givekey" -> giveKey(sender, args);
+            case "giveall" -> giveAll(sender, args);
             case "givecrate" -> giveCrate(sender, args);
             case "addkeys" -> addKeys(sender, args);
             case "removekeys" -> removeKeys(sender, args);
@@ -98,11 +99,20 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2 && List.of("delete", "spawncrate", "edit").contains(subcommand)) {
             return filter(crateNames(), args[1]);
         }
+        if (args.length == 2 && subcommand.equals("giveall")) {
+            return filter(crateNames(), args[1]);
+        }
         if (args.length == 3 && List.of("givekey", "givecrate", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
             return filter(crateNames(), args[2]);
         }
         if (args.length == 4 && List.of("givekey", "givecrate", "addkeys", "removekeys").contains(subcommand)) {
             return filter(List.of("1", "2", "3", "5", "10"), args[3]);
+        }
+        if (args.length == 3 && subcommand.equals("giveall")) {
+            return filter(List.of("1", "2", "3", "5", "10"), args[2]);
+        }
+        if (args.length == 4 && subcommand.equals("giveall")) {
+            return filter(List.of("physical", "virtual"), args[3]);
         }
         return List.of();
     }
@@ -125,6 +135,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             return;
         }
         plugin.reloadConfig();
+        messageService.reload();
         crateManager.load();
         keyManager.load();
         crateLocationManager.load();
@@ -274,6 +285,33 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         }, () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[2])));
     }
 
+    private void giveAll(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.givekey")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 3) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates giveall <crate> <amount> [physical|virtual]"));
+            return;
+        }
+        int amount = parseAmount(args[2]);
+        boolean virtual = args.length >= 4 && args[3].equalsIgnoreCase("virtual");
+        crateManager.getCrate(args[1]).ifPresentOrElse(crate -> {
+            int players = 0;
+            for (Player target : Bukkit.getOnlinePlayers()) {
+                if (virtual) {
+                    keyManager.addVirtualKeys(target, crate.getId(), amount);
+                } else {
+                    givePhysicalKeys(target, crate, amount);
+                }
+                players++;
+            }
+            messageService.send(sender, "keys-given-all", Map.of(
+                "%amount%", String.valueOf(amount), "%crate%", crate.getId(),
+                "%players%", String.valueOf(players), "%type%", virtual ? "virtual" : "physical"));
+        }, () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[1])));
+    }
+
     private void addKeys(CommandSender sender, String[] args) {
         changeVirtualKeys(sender, args, true);
     }
@@ -335,6 +373,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             "&f/abestcrates spawncrate <name>",
             "&f/abestcrates edit <name>",
             "&f/abestcrates givekey <player> <crate> <amount>",
+            "&f/abestcrates giveall <crate> <amount> [physical|virtual]",
             "&f/abestcrates givecrate <player> <crate> <amount>",
             "&f/abestcrates addkeys <player> <crate> <amount>",
             "&f/abestcrates removekeys <player> <crate> <amount>",

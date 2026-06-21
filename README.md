@@ -16,7 +16,11 @@ ABestCrates is a Paper plugin for configurable Minecraft crates managed mostly t
 - Reward preview by right-clicking a crate
 - Opening by left-clicking a crate
 - Bulk opening with Shift + left-click
-- Basic opening animations: Classic, Fast, Instant
+- Opening animations: Roll/CSGO with progressive slowdown, Casino, Cosmic, Roulette, Wheel, Wonder, Classic, Fast, and Instant
+- Multiple distinct reward rolls per opening (1-9), animated and awarded together
+- Centered, paginated reward previews with Open and Open All controls
+- Paginated crate and reward management menus
+- Configurable cycle, slowdown, and finish sounds
 - Milestones, cooldowns, Vault costs, permissions, multiple key requirements, pushback, reward limits, and logs
 - PlaceholderAPI expansion and custom item metadata support
 - Command-free **Give Keys To** GUI workflow
@@ -60,6 +64,7 @@ ABestCrates/target/ABestCrates-1.1.0.jar
 /abc spawncrate <name>
 /abc edit <name>
 /abc givekey <player> <crate> <amount>
+/abc giveall <crate> <amount> [physical|virtual]
 /abc givecrate <player> <crate> <amount>
 /abc addkeys <player> <crate> <amount>
 /abc removekeys <player> <crate> <amount>
@@ -92,6 +97,8 @@ The plugin stores runtime data in:
 
 ```text
 plugins/ABestCrates/crates.yml
+plugins/ABestCrates/keys.yml
+plugins/ABestCrates/messages.yml
 plugins/ABestCrates/virtual-keys.yml
 plugins/ABestCrates/locations.yml
 plugins/ABestCrates/player-data.yml

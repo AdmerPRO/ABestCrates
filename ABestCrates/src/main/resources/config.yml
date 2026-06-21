@@ -1,44 +1,21 @@
-messages:
-  prefix: '&5ABestCrates &8> &7'
-  no-permission: '&cYou do not have permission.'
-  player-only: '&cOnly players can use this command.'
-  player-offline: '&cPlayer %player% is not online.'
-  usage: '&cUsage: &f%usage%'
-  reloaded: '&aConfiguration reloaded.'
-  saved: '&aSaved.'
-  crate-created: '&aCreated crate &f%crate%&a.'
-  crate-deleted: '&aDeleted crate &f%crate%&a.'
-  placed-crate-deleted: '&aDeleted the placed crate you were looking at.'
-  placed-crate-missing: '&cLook at a placed crate first.'
-  crate-exists: '&cCrate &f%crate% &calready exists.'
-  crate-missing: '&cCrate &f%crate% &cwas not found.'
-  crate-spawned: '&aPlaced crate &f%crate%&a at your location.'
-  crate-empty: '&cCrate &f%crate% &chas no rewards.'
-  crate-renamed: '&aRenamed crate &f%old% &ato &f%new%&a.'
-  crate-rename-invalid: '&cThat crate name is invalid.'
-  crate-color-updated: '&aSet crate color to &f%color%&a.'
-  key-given: '&aGave &f%amount%x &akey for &f%crate% &ato &f%player%&a.'
-  key-item-updated: '&aUpdated the custom key item.'
-  virtual-keys-added: '&aAdded &f%amount%x &avirtual keys for &f%crate% &ato &f%player%&a.'
-  virtual-keys-removed: '&aRemoved &f%amount%x &avirtual keys for &f%crate% &afrom &f%player%&a.'
-  reward-received: '&aYou won &f%reward% &afrom &f%crate_displayname%&a.'
-  reward-broadcast: '&5ABestCrates &8> &f%player% &7won &f%reward% &7from &f%crate_displayname%&7!'
-  bulk-opened: '&aOpened &f%amount%x &akeys for &f%crate_displayname%&a.'
-  not-enough-inventory-space: '&cYou need more inventory space before opening &f%amount%x &ckeys.'
-  hold-item: '&cHold an item in your hand or drag one into the slot.'
-  block-item-required: '&cHold a block in your hand or drag a block into the slot.'
-  crate-block-updated: '&aSet crate block to &f%block%&a.'
-  reward-display-item-updated: '&aUpdated the reward display item.'
-  reward-drop-item-updated: '&aUpdated the dropped reward item.'
-  crate-item-given: '&aAdded a placeable &f%crate% &acrate item to your inventory.'
-  crate-items-given: '&aGave &f%amount%x %crate% &acrate items to &f%player%&a.'
-  crate-permission: '&cYou need permission &f%permission% &cto open this crate.'
-  open-cooldown: '&cWait &f%seconds%s &cbefore opening this crate again.'
-  economy-unavailable: '&cThis crate has a price, but Vault economy is unavailable.'
-  not-enough-money: '&cYou need &f%cost% &cto open this crate.'
-  open-cost-failed: '&cThe economy transaction could not be completed.'
-  mass-open-choose: '&cMass Open is unavailable for CHOOSE crates; select each reward separately.'
-  milestone-received: '&6Milestone &f%amount%&6! You received bonus reward &f%reward%&6.'
+# Opening sounds. Use Bukkit sound names; set enabled to false to disable a phase.
+sounds:
+  opening:
+    cycle:
+      enabled: true
+      name: UI_BUTTON_CLICK
+      volume: 0.7
+      pitch: 1.4
+    slow:
+      enabled: true
+      name: BLOCK_NOTE_BLOCK_PLING
+      volume: 0.9
+      pitch: 1.0
+    finish:
+      enabled: true
+      name: ENTITY_PLAYER_LEVELUP
+      volume: 1.0
+      pitch: 1.25
 
 # Each player sees only their own virtual key balance below a crate hologram.
 virtual-key-display:

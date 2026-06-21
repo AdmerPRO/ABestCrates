@@ -31,6 +31,9 @@ public final class Main extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveResource("crates.yml", false);
+        saveResource("messages.yml", false);
+        saveResource("keys.yml", false);
 
         messageService = new MessageService(this);
         crateManager = new CrateManager(this);
@@ -41,7 +44,7 @@ public final class Main extends JavaPlugin {
         openingService = new AdvancedOpeningService(this, keyManager, messageService, playerDataService,
             new EconomyService(this), placeholderService);
         chatInputManager = new ChatInputManager(this);
-        guiManager = new GuiManager(this, crateManager, keyManager, crateLocationManager, chatInputManager, messageService);
+        guiManager = new GuiManager(this, crateManager, keyManager, crateLocationManager, chatInputManager, messageService, openingService);
         visualService = new CrateVisualService(this, crateLocationManager, keyManager);
         crateLocationManager.setVisualRefresh(visualService::refreshVirtualDisplays);
         keyManager.setChangeListener(visualService::refreshVirtualDisplays);

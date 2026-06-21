@@ -2,6 +2,21 @@
 
 All notable changes to the ABestCrates project are documented in this file.
 
+## [Unreleased] - 2026-06-21
+
+### Added
+
+- Roll/CSGO animation with fast initial movement and progressive slowdown.
+- Casino, Cosmic, Roulette, Wheel, and Wonder opening layouts.
+- Configurable 1-9 distinct rewards per opening, including multi-selection for CHOOSE crates.
+- Centered paginated reward previews with Open and Open All buttons.
+- Pagination for crate, reward, and key-distribution menus.
+- Light gray stained-glass fillers across menus.
+- Shift-click and drag/drop item editing for reward item bundles.
+- `/abc giveall <crate> <amount> [physical|virtual]` for all online players.
+- Configurable cycle, slowdown, and finish sounds.
+- Dedicated `crates.yml`, `keys.yml`, and `messages.yml` resources with legacy loading compatibility.
+
 ## [1.1.0] - 2026-06-20
 
 ### Added
