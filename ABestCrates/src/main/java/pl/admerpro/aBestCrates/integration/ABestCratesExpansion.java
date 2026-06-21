@@ -3,8 +3,6 @@ package pl.admerpro.aBestCrates.integration;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import pl.admerpro.aBestCrates.Main;
 import pl.admerpro.aBestCrates.manager.CrateManager;
 import pl.admerpro.aBestCrates.manager.KeyManager;
@@ -25,17 +23,17 @@ public class ABestCratesExpansion extends PlaceholderExpansion {
     }
 
     @Override
-    public @NotNull String getIdentifier() {
+    public String getIdentifier() {
         return "abestcrates";
     }
 
     @Override
-    public @NotNull String getAuthor() {
+    public String getAuthor() {
         return String.join(", ", plugin.getPluginMeta().getAuthors());
     }
 
     @Override
-    public @NotNull String getVersion() {
+    public String getVersion() {
         return plugin.getPluginMeta().getVersion();
     }
 
@@ -45,7 +43,7 @@ public class ABestCratesExpansion extends PlaceholderExpansion {
     }
 
     @Override
-    public @Nullable String onRequest(OfflinePlayer player, @NotNull String params) {
+    public String onRequest(OfflinePlayer player, String params) {
         if (player == null) {
             return "0";
         }

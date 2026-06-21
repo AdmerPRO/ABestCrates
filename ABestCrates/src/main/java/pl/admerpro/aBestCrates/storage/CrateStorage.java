@@ -6,13 +6,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-<<<<<<< HEAD
-import java.util.Locale;
-=======
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
->>>>>>> origin/main
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -252,14 +249,14 @@ public class CrateStorage {
         return configuration;
     }
 
-    private String normalizeSerializedItemStacks(String content) {
+    static String normalizeSerializedItemStacks(String content) {
         StringBuilder normalized = new StringBuilder(content.length());
         String[] lines = content.split("\\R", -1);
         int itemStackIndent = -1;
         boolean appendedLine = false;
         for (int index = 0; index < lines.length; index++) {
             String line = lines[index];
-            if (itemStackIndent >= 0 && !line.isBlank() && indentation(line) <= itemStackIndent) {
+            if (itemStackIndent >= 0 && !line.isBlank() && indentation(line) < itemStackIndent) {
                 itemStackIndent = -1;
             }
 
@@ -268,7 +265,7 @@ public class CrateStorage {
                 itemStackIndent = itemStackMatcher.group(1).length();
             }
 
-            if (itemStackIndent >= 0) {
+            if (itemStackIndent >= 0 && indentation(line) == itemStackIndent) {
                 line = normalizeSerializedItemStackLine(line);
             }
 
@@ -284,7 +281,7 @@ public class CrateStorage {
         return normalized.toString();
     }
 
-    private String normalizeSerializedItemStackLine(String line) {
+    private static String normalizeSerializedItemStackLine(String line) {
         if (ITEM_VERSION_PATTERN.matcher(line).matches()) {
             return null;
         }
@@ -302,13 +299,13 @@ public class CrateStorage {
         return line;
     }
 
-    private String readSerializedMaterialName(String materialId) {
+    private static String readSerializedMaterialName(String materialId) {
         String materialName = materialId.toUpperCase(Locale.ROOT);
         Material material = Material.matchMaterial(materialName, false);
         return material == null ? Material.STONE.name() : material.name();
     }
 
-    private int indentation(String line) {
+    private static int indentation(String line) {
         int indentation = 0;
         while (indentation < line.length() && Character.isWhitespace(line.charAt(indentation))) {
             indentation++;

@@ -176,7 +176,7 @@ public class CrateVisualService implements Listener {
             case SPIRAL -> {
                 for (int index = 0; index < 5; index++) {
                     double angle = animation + index * 1.25D;
-                    particle(center, Math.cos(angle) * 0.75D, index * 0.25D, Math.sin(angle) * 0.75D, Particle.ENCHANT);
+                    particle(center, Math.cos(angle) * 0.75D, index * 0.25D, Math.sin(angle) * 0.75D, Particle.ENCHANTMENT_TABLE);
                 }
             }
             case HELIX -> {
@@ -198,7 +198,7 @@ public class CrateVisualService implements Listener {
             double angle = animation + index * (Math.PI / 4.0D);
             particle(center, Math.cos(angle) * radius, Math.sin(angle) * radius + 0.35D, 0.0D, Particle.END_ROD);
             particle(center, 0.0D, Math.sin(angle) * radius + 0.35D, Math.cos(angle) * radius, Particle.ELECTRIC_SPARK);
-            particle(center, Math.cos(angle) * radius, 0.35D, Math.sin(angle) * radius, Particle.ENCHANT);
+            particle(center, Math.cos(angle) * radius, 0.35D, Math.sin(angle) * radius, Particle.ENCHANTMENT_TABLE);
         }
     }
 

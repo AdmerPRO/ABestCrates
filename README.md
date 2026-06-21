@@ -24,8 +24,9 @@ ABestCrates is a Paper plugin for configurable Minecraft crates managed mostly t
 
 ## Requirements
 
-- Java 21
-- Paper 1.21.x
+- Paper 1.20.1-1.20.6
+- Java 17 for Paper 1.20.1-1.20.4
+- Java 21 for Paper 1.20.5-1.20.6 (the plugin remains compiled for Java 17)
 - Maven for building from source
 - Optional: Vault and PlaceholderAPI
 

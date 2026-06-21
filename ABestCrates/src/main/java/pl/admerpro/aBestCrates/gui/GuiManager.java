@@ -229,7 +229,7 @@ public class GuiManager implements Listener {
         )).build());
         inventory.setItem(18, new ItemBuilder(Material.AMETHYST_SHARD).name("&dRarity").lore(List.of(
             "&7Current: &f" + reward.getRarity(), "&7Affects weight multiplier.")).build());
-        inventory.setItem(20, new ItemBuilder(Material.HEAVY_CORE).name("&bWeight").lore(List.of(
+        inventory.setItem(20, new ItemBuilder(Material.NETHERITE_SCRAP).name("&bWeight").lore(List.of(
             "&7Current: &f" + reward.getWeight(), "&7Auto-scaled against other rewards.")).build());
         inventory.setItem(24, new ItemBuilder(Material.COMMAND_BLOCK).name("&eCommands").lore(List.of(
             "&7Configured: &f" + reward.getCommands().size(), "&7Separate commands with |.")).build());
