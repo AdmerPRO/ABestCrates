@@ -543,6 +543,11 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
                     animation.displayItems.get(random.nextInt(animation.displayItems.size())).clone());
             }
         }
+        boolean landingFrame = step == animation.profile.steps - 1;
+        AnimationType animationType = animation.crate.getAnimationType();
+        if (landingFrame && (animation.rolling || animationType == AnimationType.CASINO)) {
+            renderWinningFrame(animation, animationType == AnimationType.CASINO);
+        }
         String soundPath = step > animation.profile.steps * 0.7D ? "sounds.opening.slow" : "sounds.opening.cycle";
         playConfiguredSound(animation.player, soundPath, step > animation.profile.steps * 0.7D
             ? Sound.BLOCK_NOTE_BLOCK_PLING : Sound.UI_BUTTON_CLICK);
@@ -557,15 +562,29 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         if (animation == null || !activeAnimations.remove(animation.player.getUniqueId(), animation)) {
             return;
         }
-        fillInventory(animation.inventory, filler());
-        int[] resultSlots = centeredSlots(animation.rewards.size());
+        renderWinningFrame(animation, true);
+        completeOpen(animation.player, animation.crate, animation.rewards);
+    }
+
+    private void renderWinningFrame(ActiveAnimation animation, boolean clearInventory) {
+        if (clearInventory) {
+            fillInventory(animation.inventory, filler());
+        }
+        AnimationType animationType = animation.crate.getAnimationType();
+        int[] resultSlots = animationType == AnimationType.CASINO
+            ? casinoResultSlots(animation.rewards.size()) : centeredSlots(animation.rewards.size());
         for (int index = 0; index < animation.rewards.size(); index++) {
             Reward reward = animation.rewards.get(index);
             int resultSlot = resultSlots[index];
             animation.inventory.setItem(resultSlot, rewardDisplayItem(reward));
-            animation.inventory.setItem(resultSlot - 9, winnerMarker(reward, index + 1));
+            if (animation.rolling) {
+                ItemStack marker = winnerMarker(reward, index + 1);
+                animation.inventory.setItem(resultSlot - 9, marker);
+                animation.inventory.setItem(resultSlot + 9, marker.clone());
+            } else if (animationType != AnimationType.CASINO && resultSlot >= 9) {
+                animation.inventory.setItem(resultSlot - 9, winnerMarker(reward, index + 1));
+            }
         }
-        completeOpen(animation.player, animation.crate, animation.rewards);
     }
 
     private AnimationProfile profile(AnimationType type) {
@@ -590,6 +609,21 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             slots[index] = start + index;
         }
         return slots;
+    }
+
+    private int[] casinoResultSlots(int amount) {
+        int count = Math.max(1, Math.min(9, amount));
+        return switch (count) {
+            case 1 -> new int[]{13};
+            case 2 -> new int[]{12, 14};
+            case 3 -> new int[]{12, 13, 14};
+            case 4 -> new int[]{3, 5, 21, 23};
+            case 5 -> new int[]{3, 5, 13, 21, 23};
+            case 6 -> new int[]{3, 4, 5, 21, 22, 23};
+            case 7 -> new int[]{3, 4, 5, 12, 13, 14, 22};
+            case 8 -> new int[]{3, 4, 5, 12, 14, 21, 22, 23};
+            default -> new int[]{3, 4, 5, 12, 13, 14, 21, 22, 23};
+        };
     }
 
     private void fillInventory(Inventory inventory, ItemStack item) {
