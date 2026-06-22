@@ -76,7 +76,9 @@ public class CrateStorage {
             crate.setPreviewTitle(section.getString("preview.title", crate.getPreviewTitle()));
             crate.setOpeningTitle(section.getString("opening.title", crate.getOpeningTitle()));
             crate.setRewardRolls(section.getInt("reward-rolls", 1));
-            crate.setKeyRequirements(readKeyRequirements(section.getStringList("key-requirements")));
+            if (section.contains("key-requirements")) {
+                crate.setKeyRequirements(readKeyRequirements(section.getStringList("key-requirements")));
+            }
             crate.setMilestones(readMilestones(section.getConfigurationSection("milestones")));
             ConfigurationSection keySection = keysConfiguration.getConfigurationSection("keys." + storedId);
             crate.setKeyDefinition(readKey(keySection == null ? section.getConfigurationSection("key") : keySection));

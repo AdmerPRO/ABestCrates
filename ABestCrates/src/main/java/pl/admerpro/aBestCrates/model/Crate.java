@@ -37,9 +37,10 @@ public class Crate {
 
     public Crate(String id) {
         this.id = normalizeId(id);
-        this.displayName = "&5" + id.toUpperCase(Locale.ROOT) + " CRATE";
-        this.hologram.add("&5" + id.toUpperCase(Locale.ROOT));
+        this.displayName = "&5" + this.id.toUpperCase(Locale.ROOT) + " CRATE";
+        this.hologram.add("&5" + this.id.toUpperCase(Locale.ROOT));
         this.hologram.add("&7Click to open");
+        this.keyRequirements.add(new KeyRequirement(this.id, 1));
     }
 
     public static String normalizeId(String id) {
@@ -187,9 +188,6 @@ public class Crate {
     }
 
     public List<KeyRequirement> getKeyRequirements() {
-        if (keyRequirements.isEmpty()) {
-            return List.of(new KeyRequirement(id, 1));
-        }
         return Collections.unmodifiableList(keyRequirements);
     }
 
