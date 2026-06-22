@@ -24,6 +24,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.Crate;
+import pl.admerpro.aBestCrates.integration.CustomItemIntegrationService;
 import pl.admerpro.aBestCrates.model.KeyDefinition;
 import pl.admerpro.aBestCrates.model.KeyRequirement;
 import pl.admerpro.aBestCrates.util.ColorUtil;
@@ -36,12 +37,16 @@ public class KeyManager {
     private final File file;
     private final NamespacedKey crateKey;
     private final NamespacedKey crateItemKey;
+    private final CustomItemIntegrationService customItems;
     private final Map<UUID, Map<String, Integer>> virtualKeys = new HashMap<>();
     private Runnable changeListener = () -> { };
+    private int batchDepth;
+    private boolean batchDirty;
 
-    public KeyManager(JavaPlugin plugin, CrateManager crateManager) {
+    public KeyManager(JavaPlugin plugin, CrateManager crateManager, CustomItemIntegrationService customItems) {
         this.plugin = plugin;
         this.crateManager = crateManager;
+        this.customItems = customItems;
         this.file = new File(plugin.getDataFolder(), "virtual-keys.yml");
         this.crateKey = new NamespacedKey(plugin, "crate_id");
         this.crateItemKey = new NamespacedKey(plugin, "crate_item_id");
@@ -100,7 +105,7 @@ public class KeyManager {
         ItemStack templateItem = definition.getTemplateItem();
         ItemStack itemStack = templateItem == null
             ? new ItemStack(definition.getMaterial(), Math.max(1, amount))
-            : templateItem.asQuantity(Math.max(1, amount));
+            : customItems.refresh(templateItem).asQuantity(Math.max(1, amount));
         ItemMeta meta = itemStack.getItemMeta();
         if (meta != null) {
             meta.displayName(ColorUtil.component(applyCratePlaceholders(definition.getDisplayName(), crate)));
@@ -200,10 +205,10 @@ public class KeyManager {
             consumePhysicalKeys(player, requiredCrate, physical);
             int virtual = entry.getValue() - physical;
             if (virtual > 0) {
-                removeVirtualKeys(player.getUniqueId(), requiredCrate.getId(), virtual);
+                removeVirtualKeysInternal(player.getUniqueId(), requiredCrate.getId(), virtual);
             }
         }
-        changeListener.run();
+        markChanged();
         return true;
     }
 
@@ -274,20 +279,31 @@ public class KeyManager {
         }
         virtualKeys.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
             .merge(key(crateId), amount, Integer::sum);
-        save();
-        changeListener.run();
+        markChanged();
     }
 
     public void removeVirtualKeys(UUID uuid, String crateId, int amount) {
         if (amount <= 0) {
             return;
         }
-        Map<String, Integer> playerKeys = virtualKeys.computeIfAbsent(uuid, ignored -> new HashMap<>());
-        String normalizedCrate = key(crateId);
-        int remaining = Math.max(0, playerKeys.getOrDefault(normalizedCrate, 0) - amount);
-        playerKeys.put(normalizedCrate, remaining);
-        save();
-        changeListener.run();
+        removeVirtualKeysInternal(uuid, crateId, amount);
+        markChanged();
+    }
+
+    public void beginBatch() {
+        batchDepth++;
+    }
+
+    public void endBatch() {
+        if (batchDepth <= 0) {
+            return;
+        }
+        batchDepth--;
+        if (batchDepth == 0 && batchDirty) {
+            batchDirty = false;
+            save();
+            changeListener.run();
+        }
     }
 
     public boolean isKnownKey(ItemStack itemStack) {
@@ -395,6 +411,22 @@ public class KeyManager {
 
     private String key(String crateId) {
         return crateId == null ? "" : crateId.toLowerCase(Locale.ROOT);
+    }
+
+    private void removeVirtualKeysInternal(UUID uuid, String crateId, int amount) {
+        Map<String, Integer> playerKeys = virtualKeys.computeIfAbsent(uuid, ignored -> new HashMap<>());
+        String normalizedCrate = key(crateId);
+        int remaining = Math.max(0, playerKeys.getOrDefault(normalizedCrate, 0) - amount);
+        playerKeys.put(normalizedCrate, remaining);
+    }
+
+    private void markChanged() {
+        if (batchDepth > 0) {
+            batchDirty = true;
+            return;
+        }
+        save();
+        changeListener.run();
     }
 
     private Map<String, Integer> requirementTotals(Crate crate) {

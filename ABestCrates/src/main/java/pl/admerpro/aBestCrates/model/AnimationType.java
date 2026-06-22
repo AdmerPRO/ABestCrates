@@ -3,7 +3,14 @@ package pl.admerpro.aBestCrates.model;
 public enum AnimationType {
     CLASSIC,
     FAST,
-    INSTANT;
+    INSTANT,
+    ROLL,
+    CSGO,
+    CASINO,
+    COSMIC,
+    ROULETTE,
+    WHEEL,
+    WONDER;
 
     public AnimationType next() {
         AnimationType[] values = values();

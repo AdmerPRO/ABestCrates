@@ -6,9 +6,12 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.BlockPistonExtendEvent;
+import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.world.WorldLoadEvent;
 import pl.admerpro.aBestCrates.gui.GuiManager;
 import pl.admerpro.aBestCrates.manager.CrateLocationManager;
 import pl.admerpro.aBestCrates.manager.KeyManager;
@@ -86,6 +89,25 @@ public class CrateListener implements Listener {
     @EventHandler
     public void onBlockExplode(BlockExplodeEvent event) {
         event.blockList().removeIf(crateLocationManager::isCrateBlock);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPistonExtend(BlockPistonExtendEvent event) {
+        if (event.getBlocks().stream().anyMatch(crateLocationManager::isCrateBlock)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPistonRetract(BlockPistonRetractEvent event) {
+        if (event.getBlocks().stream().anyMatch(crateLocationManager::isCrateBlock)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onWorldLoad(WorldLoadEvent event) {
+        crateLocationManager.refreshHolograms();
     }
 
     @EventHandler

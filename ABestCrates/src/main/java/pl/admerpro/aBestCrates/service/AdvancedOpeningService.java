@@ -1,7 +1,9 @@
 package pl.admerpro.aBestCrates.service;
 
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -11,6 +13,7 @@ import org.bukkit.FireworkEffect;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
@@ -18,16 +21,17 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 import pl.admerpro.aBestCrates.gui.MenuHolder;
 import pl.admerpro.aBestCrates.gui.MenuType;
+import pl.admerpro.aBestCrates.integration.CustomItemIntegrationService;
 import pl.admerpro.aBestCrates.manager.KeyManager;
 import pl.admerpro.aBestCrates.model.AnimationType;
 import pl.admerpro.aBestCrates.model.Crate;
@@ -42,13 +46,16 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
     private final PlayerDataService playerData;
     private final EconomyService economyService;
     private final PlaceholderService placeholderService;
+    private final CustomItemIntegrationService customItems;
     private final NamespacedKey choiceRewardKey;
     private final Random random = new Random();
     private final Map<UUID, PendingChoice> pendingChoices = new HashMap<>();
+    private final Map<UUID, ActiveAnimation> activeAnimations = new HashMap<>();
+    private final Map<UUID, BulkOpening> bulkOpenings = new HashMap<>();
 
     public AdvancedOpeningService(JavaPlugin plugin, KeyManager keyManager, MessageService messageService,
                                   PlayerDataService playerData, EconomyService economyService,
-                                  PlaceholderService placeholderService) {
+                                  PlaceholderService placeholderService, CustomItemIntegrationService customItems) {
         super(plugin, keyManager, messageService);
         this.plugin = plugin;
         this.keyManager = keyManager;
@@ -56,6 +63,7 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         this.playerData = playerData;
         this.economyService = economyService;
         this.placeholderService = placeholderService;
+        this.customItems = customItems;
         this.choiceRewardKey = new NamespacedKey(plugin, "choice_reward");
     }
 
@@ -75,6 +83,10 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
 
     @Override
     public void openAllKeys(Player player, Crate crate) {
+        if (isOpening(player)) {
+            messageService.send(player, "opening-already-active");
+            return;
+        }
         if (!canUse(player, crate, null)) {
             return;
         }
@@ -92,30 +104,9 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             return;
         }
 
-        int opened = 0;
-        for (int index = 0; index < maximum; index++) {
-            Reward reward = roll(eligibleRewards(player, crate));
-            if (reward == null || !keyManager.hasRequiredKeys(player, crate)) {
-                break;
-            }
-            if (crate.getOpenCost() > 0.0D && (!economyService.has(player, crate.getOpenCost())
-                || !economyService.withdraw(player, crate.getOpenCost()))) {
-                break;
-            }
-            if (!keyManager.consumeRequiredKeys(player, crate)) {
-                break;
-            }
-            completeOpen(player, crate, reward);
-            opened++;
-        }
-        if (opened <= 0) {
-            messageService.send(player, "crate-empty", Map.of("%crate%", crate.getId()));
-            return;
-        }
-        playerData.startCooldown(player.getUniqueId(), crate);
-        messageService.send(player, "bulk-opened", Map.of(
-            "%amount%", String.valueOf(opened), "%crate%", crate.getId(),
-            "%crate_displayname%", crate.getDisplayName()));
+        BulkOpening bulk = new BulkOpening(player, crate, maximum);
+        bulkOpenings.put(player.getUniqueId(), bulk);
+        runBulkBatch(bulk);
     }
 
     @EventHandler
@@ -133,14 +124,19 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         }
         String rewardId = clicked.getItemMeta().getPersistentDataContainer()
             .get(choiceRewardKey, PersistentDataType.STRING);
-        Reward reward = rewardId == null ? null : pending.rewards().stream()
+        Reward reward = rewardId == null ? null : pending.rewards.stream()
             .filter(candidate -> candidate.getId().equalsIgnoreCase(rewardId)).findFirst().orElse(null);
-        if (reward == null || !isEligible(player, pending.crate(), reward)) {
+        if (reward == null || !isEligible(player, pending.crate, reward)) {
             return;
         }
-        pendingChoices.remove(player.getUniqueId());
-        player.closeInventory();
-        completeOpen(player, pending.crate(), reward);
+        pending.selected.add(reward);
+        event.getInventory().setItem(event.getRawSlot(), choiceItem(reward, pending));
+        playConfiguredSound(player, "sounds.opening.cycle", Sound.UI_BUTTON_CLICK);
+        if (pending.selected.size() >= pending.target) {
+            pendingChoices.remove(player.getUniqueId());
+            player.closeInventory();
+            completeOpen(player, pending.crate, pending.selected);
+        }
     }
 
     @EventHandler
@@ -151,15 +147,45 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             || !pendingChoices.containsKey(player.getUniqueId())) {
             return;
         }
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            PendingChoice pending = pendingChoices.get(player.getUniqueId());
-            if (pending != null && player.isOnline()) {
-                openChoiceMenu(player, pending.crate(), pending.rewards());
-            }
-        });
+        Bukkit.getScheduler().runTask(plugin, () -> finishChoice(player));
+    }
+
+    @EventHandler
+    public void onOpeningClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)
+            || !(event.getInventory().getHolder() instanceof MenuHolder holder)
+            || holder.getType() != MenuType.OPENING) {
+            return;
+        }
+        ActiveAnimation animation = activeAnimations.get(player.getUniqueId());
+        if (animation != null && animation.inventory == event.getInventory()) {
+            Bukkit.getScheduler().runTask(plugin, () -> finishAnimation(animation));
+        }
+    }
+
+    @EventHandler
+    public void onOpeningClick(InventoryClickEvent event) {
+        if (event.getInventory().getHolder() instanceof MenuHolder holder
+            && holder.getType() == MenuType.OPENING) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        finishChoice(event.getPlayer());
+        ActiveAnimation animation = activeAnimations.get(event.getPlayer().getUniqueId());
+        if (animation != null) {
+            finishAnimation(animation);
+        }
+        finishBulk(bulkOpenings.remove(event.getPlayer().getUniqueId()));
     }
 
     private void open(Player player, Crate crate, Location source, boolean forced) {
+        if (isOpening(player)) {
+            messageService.send(player, "opening-already-active");
+            return;
+        }
         if (!forced && !canUse(player, crate, source)) {
             return;
         }
@@ -183,22 +209,125 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
                 return;
             }
             if (!keyManager.consumeRequiredKeys(player, crate)) {
+                economyService.deposit(player, crate.getOpenCost());
                 sendNoKey(player, crate);
                 return;
             }
             playerData.startCooldown(player.getUniqueId(), crate);
         }
         if (crate.getCrateType() == CrateType.CHOOSE) {
-            pendingChoices.put(player.getUniqueId(), new PendingChoice(crate, eligible));
-            openChoiceMenu(player, crate, eligible);
+            PendingChoice pending = new PendingChoice(crate, eligible, crate.getRewardRolls());
+            pendingChoices.put(player.getUniqueId(), pending);
+            openChoiceMenu(player, pending);
             return;
         }
-        Reward reward = roll(eligible);
+        List<Reward> rewards = rollRepeated(eligible, crate.getRewardRolls());
         if (!forced && crate.getAnimationType() != AnimationType.INSTANT) {
-            playAnimation(player, crate, reward, eligible);
+            playAnimation(player, crate, rewards, eligible);
         } else {
-            completeOpen(player, crate, reward);
+            completeOpen(player, crate, rewards);
         }
+    }
+
+    private boolean isOpening(Player player) {
+        UUID uuid = player.getUniqueId();
+        return pendingChoices.containsKey(uuid) || activeAnimations.containsKey(uuid) || bulkOpenings.containsKey(uuid);
+    }
+
+    private void finishChoice(Player player) {
+        PendingChoice pending = pendingChoices.remove(player.getUniqueId());
+        if (pending == null) {
+            return;
+        }
+        while (pending.selected.size() < pending.target && !pending.rewards.isEmpty()) {
+            Reward selected = roll(pending.rewards);
+            if (selected == null) {
+                selected = pending.rewards.get(0);
+            }
+            pending.selected.add(selected);
+        }
+        completeOpen(player, pending.crate, pending.selected);
+    }
+
+    private void runBulkBatch(BulkOpening bulk) {
+        if (bulk == null || bulkOpenings.get(bulk.player.getUniqueId()) != bulk || !bulk.player.isOnline()) {
+            if (bulk != null) {
+                bulkOpenings.remove(bulk.player.getUniqueId());
+                finishBulk(bulk);
+            }
+            return;
+        }
+        int batchSize = Math.max(1, Math.min(50, plugin.getConfig().getInt("mass-open.batch-size", 5)));
+        keyManager.beginBatch();
+        playerData.beginBatch();
+        try {
+            for (int index = 0; index < batchSize && bulk.opened < bulk.maximum; index++) {
+                List<Reward> rewards = rollRewards(bulk.player, bulk.crate);
+                if (rewards.isEmpty() || !keyManager.hasRequiredKeys(bulk.player, bulk.crate)) {
+                    bulk.finished = true;
+                    break;
+                }
+                double cost = bulk.crate.getOpenCost();
+                if (cost > 0.0D && (!economyService.has(bulk.player, cost)
+                    || !economyService.withdraw(bulk.player, cost))) {
+                    bulk.finished = true;
+                    break;
+                }
+                if (!keyManager.consumeRequiredKeys(bulk.player, bulk.crate)) {
+                    economyService.deposit(bulk.player, cost);
+                    bulk.finished = true;
+                    break;
+                }
+                completeOpen(bulk.player, bulk.crate, rewards, false, false);
+                bulk.opened++;
+            }
+        } finally {
+            playerData.endBatch();
+            keyManager.endBatch();
+        }
+        if (bulk.finished || bulk.opened >= bulk.maximum) {
+            bulkOpenings.remove(bulk.player.getUniqueId());
+            finishBulk(bulk);
+            return;
+        }
+        long delay = Math.max(1L, plugin.getConfig().getLong("mass-open.batch-delay-ticks", 1L));
+        Bukkit.getScheduler().runTaskLater(plugin, () -> runBulkBatch(bulk), delay);
+    }
+
+    private void finishBulk(BulkOpening bulk) {
+        if (bulk == null || bulk.summarySent) {
+            return;
+        }
+        bulk.summarySent = true;
+        if (bulk.opened <= 0) {
+            if (bulk.player.isOnline()) {
+                messageService.send(bulk.player, "crate-empty", Map.of("%crate%", bulk.crate.getId()));
+            }
+            return;
+        }
+        playerData.startCooldown(bulk.player.getUniqueId(), bulk.crate);
+        if (bulk.player.isOnline()) {
+            playConfiguredSound(bulk.player, "sounds.opening.finish", Sound.ENTITY_PLAYER_LEVELUP);
+            messageService.send(bulk.player, "bulk-opened", Map.of(
+                "%amount%", String.valueOf(bulk.opened), "%crate%", bulk.crate.getId(),
+                "%crate_displayname%", bulk.crate.getDisplayName()));
+        }
+    }
+
+    public void shutdown() {
+        for (UUID uuid : new ArrayList<>(pendingChoices.keySet())) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                finishChoice(player);
+            }
+        }
+        for (ActiveAnimation animation : new ArrayList<>(activeAnimations.values())) {
+            finishAnimation(animation);
+        }
+        for (BulkOpening bulk : new ArrayList<>(bulkOpenings.values())) {
+            finishBulk(bulk);
+        }
+        bulkOpenings.clear();
     }
 
     private boolean canUse(Player player, Crate crate, Location source) {
@@ -264,18 +393,49 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         return rewards.get(rewards.size() - 1);
     }
 
+    private List<Reward> rollRewards(Player player, Crate crate) {
+        return rollRepeated(eligibleRewards(player, crate), crate.getRewardRolls());
+    }
+
+    private List<Reward> rollRepeated(List<Reward> rewards, int requested) {
+        List<Reward> result = new ArrayList<>();
+        while (!rewards.isEmpty() && result.size() < Math.max(1, requested)) {
+            Reward reward = roll(rewards);
+            if (reward == null) {
+                break;
+            }
+            result.add(reward);
+        }
+        return result;
+    }
+
     private double weightedChance(Reward reward) {
         double rarityMultiplier = plugin.getConfig().getDouble(
             "rarities." + reward.getRarity().toLowerCase() + ".multiplier", 1.0D);
         return Math.max(0.0D, reward.getWeight() * Math.max(0.0D, rarityMultiplier));
     }
 
-    private void completeOpen(Player player, Crate crate, Reward reward) {
-        if (reward == null) {
+    private void completeOpen(Player player, Crate crate, List<Reward> rewards) {
+        completeOpen(player, crate, rewards, true, true);
+    }
+
+    private void completeOpen(Player player, Crate crate, List<Reward> rewards,
+                              boolean announceResults, boolean finishSound) {
+        if (rewards == null || rewards.isEmpty()) {
             messageService.send(player, "crate-empty", Map.of("%crate%", crate.getId()));
             return;
         }
-        giveReward(player, crate, reward, true);
+        for (Reward reward : rewards) {
+            giveReward(player, crate, reward, announceResults && rewards.size() == 1);
+        }
+        if (announceResults && rewards.size() > 1) {
+            messageService.send(player, "rewards-received", Map.of(
+                "%amount%", String.valueOf(rewards.size()), "%crate%", crate.getId(),
+                "%crate_displayname%", crate.getDisplayName()));
+        }
+        if (finishSound) {
+            playConfiguredSound(player, "sounds.opening.finish", Sound.ENTITY_PLAYER_LEVELUP);
+        }
         int streak = playerData.recordOpen(player.getUniqueId(), crate);
         String milestoneRewardId = crate.getMilestones().get(streak);
         if (milestoneRewardId != null) {
@@ -289,14 +449,13 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
 
     private void giveReward(Player player, Crate crate, Reward reward, boolean announce) {
         for (ItemStack item : reward.getItemRewards()) {
-            player.getInventory().addItem(item).values()
+            player.getInventory().addItem(customItems.refresh(item)).values()
                 .forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
         }
         for (String command : reward.getCommands()) {
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), applyPlaceholders(command, player, crate, reward));
         }
         playerData.recordReward(player, crate, reward);
-        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.25F);
         if (reward.isFireworks()) {
             spawnFirework(player);
         }
@@ -305,69 +464,163 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
                 "%crate%", crate.getId(), "%crate_displayname%", crate.getDisplayName(), "%reward%", rewardName(reward)));
         }
         if (reward.isBroadcast()) {
-            String message = plugin.getConfig().getString("messages.reward-broadcast", "")
+            String message = messageService.get("reward-broadcast")
                 .replace("%player%", player.getName()).replace("%crate%", crate.getId())
                 .replace("%crate_displayname%", crate.getDisplayName()).replace("%reward%", rewardName(reward));
             Bukkit.broadcast(ColorUtil.component(placeholderService.apply(player, message)));
         }
     }
 
-    private void openChoiceMenu(Player player, Crate crate, List<Reward> rewards) {
+    private void openChoiceMenu(Player player, PendingChoice pending) {
+        Crate crate = pending.crate;
+        List<Reward> rewards = pending.rewards;
         int size = Math.max(9, Math.min(54, ((rewards.size() - 1) / 9 + 1) * 9));
         MenuHolder holder = new MenuHolder(MenuType.CHOOSE_OPEN, crate.getId());
         Inventory inventory = Bukkit.createInventory(holder, size,
             ColorUtil.component(applyPlaceholders(crate.getOpeningTitle(), player, crate, null)));
         holder.setInventory(inventory);
+        fillInventory(inventory, filler());
         for (int index = 0; index < Math.min(size, rewards.size()); index++) {
             Reward reward = rewards.get(index);
-            ItemStack item = rewardDisplayItem(reward);
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null) {
-                meta.getPersistentDataContainer().set(choiceRewardKey, PersistentDataType.STRING, reward.getId());
-                item.setItemMeta(meta);
-            }
-            inventory.setItem(index, item);
+            inventory.setItem(index, choiceItem(reward, pending));
         }
         player.openInventory(inventory);
     }
 
-    private void playAnimation(Player player, Crate crate, Reward reward, List<Reward> eligible) {
+    private ItemStack choiceItem(Reward reward, PendingChoice pending) {
+        ItemStack item = rewardDisplayItem(reward);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.getPersistentDataContainer().set(choiceRewardKey, PersistentDataType.STRING, reward.getId());
+            List<net.kyori.adventure.text.Component> lore = meta.lore() == null
+                ? new ArrayList<>() : new ArrayList<>(meta.lore());
+            long selected = pending.selected.stream().filter(candidate -> candidate == reward).count();
+            lore.add(ColorUtil.component("&aSelected: &f" + selected + "&7/&f" + pending.target));
+            lore.add(ColorUtil.component("&eClick again to select this reward multiple times."));
+            meta.lore(lore);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private void playAnimation(Player player, Crate crate, List<Reward> rewards, List<Reward> eligible) {
         MenuHolder holder = new MenuHolder(MenuType.OPENING, crate.getId());
         Inventory inventory = Bukkit.createInventory(holder, 27,
-            ColorUtil.component(applyPlaceholders(crate.getOpeningTitle(), player, crate, reward)));
+            ColorUtil.component(applyPlaceholders(crate.getOpeningTitle(), player, crate,
+                rewards.isEmpty() ? null : rewards.get(0))));
         holder.setInventory(inventory);
-        ItemStack marker = centerMarker();
-        inventory.setItem(4, marker);
-        inventory.setItem(22, marker);
+        fillInventory(inventory, filler());
         player.openInventory(inventory);
         List<ItemStack> displayItems = eligible.stream().map(this::rewardDisplayItem).toList();
-        int iterations = crate.getAnimationType() == AnimationType.FAST ? 10 : 16;
-        long period = crate.getAnimationType() == AnimationType.FAST ? 1L : 2L;
-        new BukkitRunnable() {
-            private int tick;
+        AnimationProfile profile = profile(crate.getAnimationType());
+        List<ItemStack> reel = new ArrayList<>();
+        for (int ignored : profile.slots) {
+            reel.add(displayItems.get(random.nextInt(displayItems.size())).clone());
+        }
+        ActiveAnimation animation = new ActiveAnimation(player, crate, inventory, rewards, displayItems,
+            profile, reel, crate.getAnimationType() == AnimationType.CSGO || crate.getAnimationType() == AnimationType.ROLL);
+        activeAnimations.put(player.getUniqueId(), animation);
+        runAnimationStep(animation, 0);
+    }
 
-            @Override
-            public void run() {
-                if (!player.isOnline()) {
-                    cancel();
-                    return;
-                }
-                if (tick >= iterations) {
-                    inventory.clear();
-                    inventory.setItem(4, marker);
-                    inventory.setItem(13, rewardDisplayItem(reward));
-                    inventory.setItem(22, marker);
-                    completeOpen(player, crate, reward);
-                    cancel();
-                    return;
-                }
-                for (int slot = 9; slot <= 17; slot++) {
-                    inventory.setItem(slot, displayItems.get(random.nextInt(displayItems.size())).clone());
-                }
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.7F, 1.4F);
-                tick++;
+    private void runAnimationStep(ActiveAnimation animation, int step) {
+        if (activeAnimations.get(animation.player.getUniqueId()) != animation) {
+            return;
+        }
+        if (!animation.player.isOnline() || step >= animation.profile.steps) {
+            finishAnimation(animation);
+            return;
+        }
+        if (animation.rolling) {
+            animation.reel.remove(0);
+            animation.reel.add(animation.displayItems.get(random.nextInt(animation.displayItems.size())).clone());
+            for (int index = 0; index < animation.profile.slots.length; index++) {
+                animation.inventory.setItem(animation.profile.slots[index], animation.reel.get(index).clone());
             }
-        }.runTaskTimer(plugin, 0L, period);
+        } else {
+            for (int slot : animation.profile.slots) {
+                animation.inventory.setItem(slot,
+                    animation.displayItems.get(random.nextInt(animation.displayItems.size())).clone());
+            }
+        }
+        String soundPath = step > animation.profile.steps * 0.7D ? "sounds.opening.slow" : "sounds.opening.cycle";
+        playConfiguredSound(animation.player, soundPath, step > animation.profile.steps * 0.7D
+            ? Sound.BLOCK_NOTE_BLOCK_PLING : Sound.UI_BUTTON_CLICK);
+        long delay = animation.profile.baseDelay
+            + Math.round(animation.profile.slowdown * Math.pow(step / (double) animation.profile.steps, 2));
+        Bukkit.getScheduler().runTaskLater(plugin,
+            () -> runAnimationStep(animation, step + 1),
+            Math.max(1L, delay));
+    }
+
+    private void finishAnimation(ActiveAnimation animation) {
+        if (animation == null || !activeAnimations.remove(animation.player.getUniqueId(), animation)) {
+            return;
+        }
+        fillInventory(animation.inventory, filler());
+        int[] resultSlots = centeredSlots(animation.rewards.size());
+        for (int index = 0; index < animation.rewards.size(); index++) {
+            animation.inventory.setItem(resultSlots[index], rewardDisplayItem(animation.rewards.get(index)));
+        }
+        animation.inventory.setItem(4, centerMarker());
+        animation.inventory.setItem(22, centerMarker());
+        completeOpen(animation.player, animation.crate, animation.rewards);
+    }
+
+    private AnimationProfile profile(AnimationType type) {
+        return switch (type) {
+            case FAST -> new AnimationProfile(new int[]{9,10,11,12,13,14,15,16,17}, 10, 1, 1);
+            case CLASSIC -> new AnimationProfile(new int[]{9,10,11,12,13,14,15,16,17}, 16, 2, 2);
+            case CASINO -> new AnimationProfile(new int[]{3,4,5,12,13,14,21,22,23}, 22, 1, 8);
+            case COSMIC -> new AnimationProfile(new int[]{1,2,3,5,6,7,9,17,18,26}, 24, 1, 9);
+            case ROULETTE -> new AnimationProfile(new int[]{0,1,2,3,4,5,6,7,8,17,26,25,24,23,22,21,20,19,18,9}, 26, 1, 10);
+            case WHEEL -> new AnimationProfile(new int[]{2,4,6,10,16,20,22,24}, 24, 1, 10);
+            case WONDER -> new AnimationProfile(new int[]{0,2,4,6,8,10,12,14,16,18,20,22,24,26}, 20, 1, 8);
+            case ROLL, CSGO -> new AnimationProfile(new int[]{9,10,11,12,13,14,15,16,17}, 28, 1, 12);
+            case INSTANT -> new AnimationProfile(new int[]{13}, 0, 1, 0);
+        };
+    }
+
+    private int[] centeredSlots(int amount) {
+        int count = Math.max(1, Math.min(9, amount));
+        int start = 9 + (9 - count) / 2;
+        int[] slots = new int[count];
+        for (int index = 0; index < count; index++) {
+            slots[index] = start + index;
+        }
+        return slots;
+    }
+
+    private void fillInventory(Inventory inventory, ItemStack item) {
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            inventory.setItem(slot, item.clone());
+        }
+    }
+
+    private ItemStack filler() {
+        ItemStack item = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(ColorUtil.component(" "));
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private void playConfiguredSound(Player player, String path, Sound fallback) {
+        if (!plugin.getConfig().getBoolean(path + ".enabled", true)) {
+            return;
+        }
+        String configured = plugin.getConfig().getString(path + ".name", "");
+        String soundKey = configured.contains(":")
+            ? configured.toLowerCase(Locale.ROOT)
+            : "minecraft:" + configured.toLowerCase(Locale.ROOT).replace('_', '.');
+        NamespacedKey namespacedKey = NamespacedKey.fromString(soundKey);
+        Sound registered = namespacedKey == null ? null : Registry.SOUNDS.get(namespacedKey);
+        Sound sound = registered == null ? fallback : registered;
+        player.playSound(player.getLocation(), sound,
+            (float) plugin.getConfig().getDouble(path + ".volume", 1.0D),
+            (float) plugin.getConfig().getDouble(path + ".pitch", 1.0D));
     }
 
     private void deny(Player player, Crate crate, Location source) {
@@ -405,7 +658,8 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
 
     private ItemStack rewardDisplayItem(Reward reward) {
         ItemStack display = reward.getDisplayItem();
-        return display == null || display.getType().isAir() ? new ItemStack(Material.PAPER) : display.clone();
+        return display == null || display.getType().isAir()
+            ? new ItemStack(Material.PAPER) : customItems.refresh(display);
     }
 
     private ItemStack centerMarker() {
@@ -427,9 +681,58 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         firework.setFireworkMeta(meta);
     }
 
-    private record PendingChoice(Crate crate, List<Reward> rewards) {
-        private PendingChoice {
-            rewards = List.copyOf(rewards);
+    private static final class PendingChoice {
+        private final Crate crate;
+        private final List<Reward> rewards;
+        private final List<Reward> selected = new ArrayList<>();
+        private final int target;
+
+        private PendingChoice(Crate crate, List<Reward> rewards, int target) {
+            this.crate = crate;
+            this.rewards = List.copyOf(rewards);
+            this.target = Math.max(1, target);
         }
+    }
+
+    private static final class ActiveAnimation {
+        private final Player player;
+        private final Crate crate;
+        private final Inventory inventory;
+        private final List<Reward> rewards;
+        private final List<ItemStack> displayItems;
+        private final AnimationProfile profile;
+        private final List<ItemStack> reel;
+        private final boolean rolling;
+
+        private ActiveAnimation(Player player, Crate crate, Inventory inventory, List<Reward> rewards,
+                                List<ItemStack> displayItems, AnimationProfile profile,
+                                List<ItemStack> reel, boolean rolling) {
+            this.player = player;
+            this.crate = crate;
+            this.inventory = inventory;
+            this.rewards = List.copyOf(rewards);
+            this.displayItems = List.copyOf(displayItems);
+            this.profile = profile;
+            this.reel = reel;
+            this.rolling = rolling;
+        }
+    }
+
+    private static final class BulkOpening {
+        private final Player player;
+        private final Crate crate;
+        private final int maximum;
+        private int opened;
+        private boolean finished;
+        private boolean summarySent;
+
+        private BulkOpening(Player player, Crate crate, int maximum) {
+            this.player = player;
+            this.crate = crate;
+            this.maximum = maximum;
+        }
+    }
+
+    private record AnimationProfile(int[] slots, int steps, long baseDelay, long slowdown) {
     }
 }

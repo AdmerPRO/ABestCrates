@@ -7,6 +7,7 @@ public class MenuHolder implements InventoryHolder {
     private final MenuType type;
     private final String crateId;
     private final String rewardId;
+    private final int page;
     private Inventory inventory;
 
     public MenuHolder(MenuType type, String crateId) {
@@ -14,9 +15,14 @@ public class MenuHolder implements InventoryHolder {
     }
 
     public MenuHolder(MenuType type, String crateId, String rewardId) {
+        this(type, crateId, rewardId, 0);
+    }
+
+    public MenuHolder(MenuType type, String crateId, String rewardId, int page) {
         this.type = type;
         this.crateId = crateId;
         this.rewardId = rewardId;
+        this.page = Math.max(0, page);
     }
 
     public MenuType getType() {
@@ -29,6 +35,10 @@ public class MenuHolder implements InventoryHolder {
 
     public String getRewardId() {
         return rewardId;
+    }
+
+    public int getPage() {
+        return page;
     }
 
     public void setInventory(Inventory inventory) {

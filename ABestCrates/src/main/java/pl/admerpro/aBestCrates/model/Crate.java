@@ -11,6 +11,8 @@ import java.util.Map;
 import org.bukkit.Material;
 
 public class Crate {
+    private static final java.util.regex.Pattern VALID_ID =
+        java.util.regex.Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{0,31}");
     private String id;
     private String displayName;
     private String color = "&5";
@@ -27,6 +29,7 @@ public class Crate {
     private boolean pushback;
     private String previewTitle = "&5Preview: &f%crate_displayname%";
     private String openingTitle = "&5Opening: &f%crate_displayname%";
+    private int rewardRolls = 1;
     private final List<KeyRequirement> keyRequirements = new ArrayList<>();
     private final Map<Integer, String> milestones = new LinkedHashMap<>();
     private KeyDefinition keyDefinition = new KeyDefinition();
@@ -40,7 +43,11 @@ public class Crate {
     }
 
     public static String normalizeId(String id) {
-        return id == null ? "" : id.trim().replace(" ", "_");
+        return id == null ? "" : id.trim();
+    }
+
+    public static boolean isValidId(String id) {
+        return VALID_ID.matcher(normalizeId(id)).matches();
     }
 
     public String getId() {
@@ -169,6 +176,14 @@ public class Crate {
 
     public void setOpeningTitle(String openingTitle) {
         this.openingTitle = openingTitle == null || openingTitle.isBlank() ? "&5Opening: &f%crate_displayname%" : openingTitle;
+    }
+
+    public int getRewardRolls() {
+        return rewardRolls;
+    }
+
+    public void setRewardRolls(int rewardRolls) {
+        this.rewardRolls = Math.max(1, Math.min(9, rewardRolls));
     }
 
     public List<KeyRequirement> getKeyRequirements() {

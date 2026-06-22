@@ -236,17 +236,12 @@ public class CrateLocationManager {
 
         private static BlockKey fromString(String value) {
             String[] parts = value.split(",");
-            if (parts.length != 4) {
-                return null;
-            }
-
-            World world = Bukkit.getWorld(parts[0]);
-            if (world == null) {
+            if (parts.length != 4 || parts[0].isBlank()) {
                 return null;
             }
 
             try {
-                return new BlockKey(world.getName(), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+                return new BlockKey(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
             } catch (NumberFormatException exception) {
                 return null;
             }
