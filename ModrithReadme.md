@@ -141,4 +141,6 @@ ABestCrates requires Java 21 and Paper 1.21.x.
 
 ## License
 
-All Rights Reserved.
+Copyright (C) 2026 AdmerPRO.
+
+Licensed under the GNU General Public License v3.0 only (`GPL-3.0-only`).

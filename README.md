@@ -109,4 +109,6 @@ PlaceholderAPI exposes `%abestcrates_virtual_<crate>%`, `%abestcrates_physical_<
 
 ## License
 
-All Rights Reserved. See `LICENSE`.
+Copyright (C) 2026 AdmerPRO.
+
+Licensed under the GNU General Public License v3.0 only (`GPL-3.0-only`). See `LICENSE`.
