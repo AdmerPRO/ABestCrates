@@ -518,7 +518,9 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             reel.add(displayItems.get(random.nextInt(displayItems.size())).clone());
         }
         ActiveAnimation animation = new ActiveAnimation(player, crate, inventory, rewards, displayItems,
-            profile, reel, crate.getAnimationType() == AnimationType.CSGO || crate.getAnimationType() == AnimationType.ROLL);
+            profile, reel, crate.getAnimationType() == AnimationType.CSGO
+                || crate.getAnimationType() == AnimationType.ROLL
+                || crate.getAnimationType() == AnimationType.COSMIC);
         activeAnimations.put(player.getUniqueId(), animation);
         runAnimationStep(animation, 0);
     }
@@ -533,7 +535,11 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         }
         if (animation.rolling) {
             animation.reel.remove(0);
-            animation.reel.add(animation.displayItems.get(random.nextInt(animation.displayItems.size())).clone());
+            ItemStack nextItem = animation.displayItems.get(random.nextInt(animation.displayItems.size())).clone();
+            if (animation.crate.getAnimationType() == AnimationType.COSMIC && step < animation.rewards.size()) {
+                nextItem = rewardDisplayItem(animation.rewards.get(step));
+            }
+            animation.reel.add(nextItem);
             for (int index = 0; index < animation.profile.slots.length; index++) {
                 animation.inventory.setItem(animation.profile.slots[index], animation.reel.get(index).clone());
             }
@@ -543,11 +549,23 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
                     animation.displayItems.get(random.nextInt(animation.displayItems.size())).clone());
             }
         }
+        if (animation.crate.getAnimationType() == AnimationType.CLASSIC) {
+            renderClassicGuides(animation);
+        }
+        boolean landingFrame = step == animation.profile.steps - 1;
+        AnimationType animationType = animation.crate.getAnimationType();
+        if (landingFrame && (animation.rolling || animationType == AnimationType.CASINO
+            || animationType == AnimationType.CLASSIC)) {
+            renderWinningFrame(animation, false);
+        }
         String soundPath = step > animation.profile.steps * 0.7D ? "sounds.opening.slow" : "sounds.opening.cycle";
         playConfiguredSound(animation.player, soundPath, step > animation.profile.steps * 0.7D
             ? Sound.BLOCK_NOTE_BLOCK_PLING : Sound.UI_BUTTON_CLICK);
         long delay = animation.profile.baseDelay
             + Math.round(animation.profile.slowdown * Math.pow(step / (double) animation.profile.steps, 2));
+        if (landingFrame && animationType == AnimationType.CASINO) {
+            delay = Math.max(delay, plugin.getConfig().getLong("animations.casino-final-hold-ticks", 30L));
+        }
         Bukkit.getScheduler().runTaskLater(plugin,
             () -> runAnimationStep(animation, step + 1),
             Math.max(1L, delay));
@@ -557,14 +575,36 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         if (animation == null || !activeAnimations.remove(animation.player.getUniqueId(), animation)) {
             return;
         }
-        fillInventory(animation.inventory, filler());
-        int[] resultSlots = centeredSlots(animation.rewards.size());
-        for (int index = 0; index < animation.rewards.size(); index++) {
-            animation.inventory.setItem(resultSlots[index], rewardDisplayItem(animation.rewards.get(index)));
-        }
-        animation.inventory.setItem(4, centerMarker());
-        animation.inventory.setItem(22, centerMarker());
+        renderWinningFrame(animation, true);
         completeOpen(animation.player, animation.crate, animation.rewards);
+    }
+
+    private void renderWinningFrame(ActiveAnimation animation, boolean clearInventory) {
+        if (clearInventory) {
+            fillInventory(animation.inventory, filler());
+        }
+        AnimationType animationType = animation.crate.getAnimationType();
+        int[] resultSlots = resultSlots(animationType, animation.rewards.size(), animation.profile);
+        if (animationType == AnimationType.CLASSIC) {
+            renderClassicGuides(animation);
+        }
+        for (int index = 0; index < animation.rewards.size(); index++) {
+            Reward reward = animation.rewards.get(index);
+            int resultSlot = resultSlots[index];
+            animation.inventory.setItem(resultSlot, rewardDisplayItem(reward));
+            if (animationType == AnimationType.ROLL || animationType == AnimationType.CSGO) {
+                ItemStack marker = winnerMarker(reward, index + 1);
+                animation.inventory.setItem(resultSlot - 9, marker);
+                animation.inventory.setItem(resultSlot + 9, marker.clone());
+            } else if (animationType == AnimationType.COSMIC && resultSlot >= 9 && resultSlot <= 17) {
+                ItemStack marker = winnerMarker(reward, index + 1);
+                animation.inventory.setItem(resultSlot - 9, marker);
+                animation.inventory.setItem(resultSlot + 9, marker.clone());
+            } else if (animationType != AnimationType.CASINO && animationType != AnimationType.CLASSIC
+                && resultSlot >= 9) {
+                animation.inventory.setItem(resultSlot - 9, winnerMarker(reward, index + 1));
+            }
+        }
     }
 
     private AnimationProfile profile(AnimationType type) {
@@ -572,7 +612,7 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             case FAST -> new AnimationProfile(new int[]{9,10,11,12,13,14,15,16,17}, 10, 1, 1);
             case CLASSIC -> new AnimationProfile(new int[]{9,10,11,12,13,14,15,16,17}, 16, 2, 2);
             case CASINO -> new AnimationProfile(new int[]{3,4,5,12,13,14,21,22,23}, 22, 1, 8);
-            case COSMIC -> new AnimationProfile(new int[]{1,2,3,5,6,7,9,17,18,26}, 24, 1, 9);
+            case COSMIC -> new AnimationProfile(new int[]{13,12,14,4,22,3,5,21,23,0,1,2,6,7,8,9,10,11,15,16,17,18,19,20,24,25,26}, 27, 1, 9);
             case ROULETTE -> new AnimationProfile(new int[]{0,1,2,3,4,5,6,7,8,17,26,25,24,23,22,21,20,19,18,9}, 26, 1, 10);
             case WHEEL -> new AnimationProfile(new int[]{2,4,6,10,16,20,22,24}, 24, 1, 10);
             case WONDER -> new AnimationProfile(new int[]{0,2,4,6,8,10,12,14,16,18,20,22,24,26}, 20, 1, 8);
@@ -589,6 +629,54 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             slots[index] = start + index;
         }
         return slots;
+    }
+
+    private int[] casinoResultSlots(int amount) {
+        int count = Math.max(1, Math.min(9, amount));
+        return switch (count) {
+            case 1 -> new int[]{13};
+            case 2 -> new int[]{12, 14};
+            case 3 -> new int[]{12, 13, 14};
+            case 4 -> new int[]{3, 5, 21, 23};
+            case 5 -> new int[]{3, 5, 13, 21, 23};
+            case 6 -> new int[]{3, 4, 5, 21, 22, 23};
+            case 7 -> new int[]{3, 4, 5, 12, 13, 14, 22};
+            case 8 -> new int[]{3, 4, 5, 12, 14, 21, 22, 23};
+            default -> new int[]{3, 4, 5, 12, 13, 14, 21, 22, 23};
+        };
+    }
+
+    private int[] resultSlots(AnimationType animationType, int amount, AnimationProfile profile) {
+        if (animationType == AnimationType.CASINO) {
+            return casinoResultSlots(amount);
+        }
+        if (animationType == AnimationType.COSMIC) {
+            int count = Math.max(1, Math.min(Math.min(9, amount), profile.slots.length));
+            return java.util.Arrays.copyOf(profile.slots, count);
+        }
+        return centeredSlots(amount);
+    }
+
+    private void renderClassicGuides(ActiveAnimation animation) {
+        int[] winners = centeredSlots(animation.rewards.size());
+        for (int column = 0; column < 9; column++) {
+            int rewardSlot = 9 + column;
+            boolean winningColumn = java.util.Arrays.stream(winners).anyMatch(slot -> slot == rewardSlot);
+            ItemStack guide = guidePane(winningColumn);
+            animation.inventory.setItem(column, guide);
+            animation.inventory.setItem(18 + column, guide.clone());
+        }
+    }
+
+    private ItemStack guidePane(boolean winning) {
+        ItemStack item = new ItemStack(winning
+            ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(ColorUtil.component(winning ? "&aWinning slot" : "&cLosing slot"));
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 
     private void fillInventory(Inventory inventory, ItemStack item) {
@@ -662,11 +750,12 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             ? new ItemStack(Material.PAPER) : customItems.refresh(display);
     }
 
-    private ItemStack centerMarker() {
+    private ItemStack winnerMarker(Reward reward, int number) {
         ItemStack item = new ItemStack(Material.LIME_BANNER);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(ColorUtil.component("&aWinner"));
+            meta.displayName(ColorUtil.component("&aWinner #" + number));
+            meta.lore(List.of(ColorUtil.component("&7Reward: &f" + rewardName(reward))));
             item.setItemMeta(meta);
         }
         return item;

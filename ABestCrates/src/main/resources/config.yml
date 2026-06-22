@@ -32,6 +32,10 @@ mass-open:
   batch-size: 5
   batch-delay-ticks: 1
 
+animations:
+  # How long Casino shows all nine stopped candidates before removing losing slots.
+  casino-final-hold-ticks: 30
+
 # A reward's effective chance is: weight * rarity multiplier.
 # Names are case-insensitive and custom rarity names default to 1.0.
 rarities:
