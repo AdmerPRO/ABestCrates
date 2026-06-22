@@ -422,6 +422,17 @@ public class GuiManager implements Listener {
         }
         event.setCancelled(true);
 
+        if (holder.getType() == MenuType.REWARDS
+            && event.getRawSlots().stream().anyMatch(slot -> slot >= 0 && slot < 45)) {
+            if (!isUsableItem(event.getOldCursor())) {
+                return;
+            }
+            ItemStack dragged = event.getOldCursor().clone();
+            crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
+                Bukkit.getScheduler().runTask(plugin, () -> addItemReward(player, crate, dragged)));
+            return;
+        }
+
         if (holder.getType() == MenuType.EDIT && event.getRawSlots().contains(SLOT_CRATE_BLOCK)) {
             crateManager.getCrate(holder.getCrateId()).ifPresent(crate -> setCrateBlockFromItem(player, crate, event.getOldCursor()));
             return;
@@ -909,9 +920,22 @@ public class GuiManager implements Listener {
             return;
         }
 
-        Reward reward = new Reward("reward_" + System.currentTimeMillis());
-        ItemStack rewardItem = heldItem.clone();
-        ItemStack displayItem = heldItem.clone();
+        addItemReward(player, crate, heldItem);
+    }
+
+    private void addItemReward(Player player, Crate crate, ItemStack sourceItem) {
+        if (!isUsableItem(sourceItem)) {
+            messageService.send(player, "hold-item");
+            return;
+        }
+
+        long generatedId = System.currentTimeMillis();
+        while (crate.getReward("reward_" + generatedId).isPresent()) {
+            generatedId++;
+        }
+        Reward reward = new Reward("reward_" + generatedId);
+        ItemStack rewardItem = sourceItem.clone();
+        ItemStack displayItem = sourceItem.clone();
         displayItem.setAmount(1);
         reward.setItemReward(rewardItem);
         reward.setDisplayItem(displayItem);

@@ -126,11 +126,11 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             .get(choiceRewardKey, PersistentDataType.STRING);
         Reward reward = rewardId == null ? null : pending.rewards.stream()
             .filter(candidate -> candidate.getId().equalsIgnoreCase(rewardId)).findFirst().orElse(null);
-        if (reward == null || pending.selected.contains(reward) || !isEligible(player, pending.crate, reward)) {
+        if (reward == null || !isEligible(player, pending.crate, reward)) {
             return;
         }
         pending.selected.add(reward);
-        event.getInventory().setItem(event.getRawSlot(), filler());
+        event.getInventory().setItem(event.getRawSlot(), choiceItem(reward, pending));
         playConfiguredSound(player, "sounds.opening.cycle", Sound.UI_BUTTON_CLICK);
         if (pending.selected.size() >= pending.target) {
             pendingChoices.remove(player.getUniqueId());
@@ -216,13 +216,12 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             playerData.startCooldown(player.getUniqueId(), crate);
         }
         if (crate.getCrateType() == CrateType.CHOOSE) {
-            PendingChoice pending = new PendingChoice(crate, eligible,
-                Math.min(crate.getRewardRolls(), eligible.size()));
+            PendingChoice pending = new PendingChoice(crate, eligible, crate.getRewardRolls());
             pendingChoices.put(player.getUniqueId(), pending);
             openChoiceMenu(player, pending);
             return;
         }
-        List<Reward> rewards = rollDistinct(eligible, crate.getRewardRolls());
+        List<Reward> rewards = rollRepeated(eligible, crate.getRewardRolls());
         if (!forced && crate.getAnimationType() != AnimationType.INSTANT) {
             playAnimation(player, crate, rewards, eligible);
         } else {
@@ -240,15 +239,12 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         if (pending == null) {
             return;
         }
-        List<Reward> remaining = new ArrayList<>(pending.rewards);
-        remaining.removeAll(pending.selected);
-        while (pending.selected.size() < pending.target && !remaining.isEmpty()) {
-            Reward selected = roll(remaining);
+        while (pending.selected.size() < pending.target && !pending.rewards.isEmpty()) {
+            Reward selected = roll(pending.rewards);
             if (selected == null) {
-                selected = remaining.get(0);
+                selected = pending.rewards.get(0);
             }
             pending.selected.add(selected);
-            remaining.remove(selected);
         }
         completeOpen(player, pending.crate, pending.selected);
     }
@@ -398,19 +394,17 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
     }
 
     private List<Reward> rollRewards(Player player, Crate crate) {
-        return rollDistinct(eligibleRewards(player, crate), crate.getRewardRolls());
+        return rollRepeated(eligibleRewards(player, crate), crate.getRewardRolls());
     }
 
-    private List<Reward> rollDistinct(List<Reward> rewards, int requested) {
-        List<Reward> pool = new ArrayList<>(rewards);
+    private List<Reward> rollRepeated(List<Reward> rewards, int requested) {
         List<Reward> result = new ArrayList<>();
-        while (!pool.isEmpty() && result.size() < Math.max(1, requested)) {
-            Reward reward = roll(pool);
+        while (!rewards.isEmpty() && result.size() < Math.max(1, requested)) {
+            Reward reward = roll(rewards);
             if (reward == null) {
                 break;
             }
             result.add(reward);
-            pool.remove(reward);
         }
         return result;
     }
@@ -488,19 +482,25 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         fillInventory(inventory, filler());
         for (int index = 0; index < Math.min(size, rewards.size()); index++) {
             Reward reward = rewards.get(index);
-            if (pending.selected.contains(reward)) {
-                inventory.setItem(index, filler());
-                continue;
-            }
-            ItemStack item = rewardDisplayItem(reward);
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null) {
-                meta.getPersistentDataContainer().set(choiceRewardKey, PersistentDataType.STRING, reward.getId());
-                item.setItemMeta(meta);
-            }
-            inventory.setItem(index, item);
+            inventory.setItem(index, choiceItem(reward, pending));
         }
         player.openInventory(inventory);
+    }
+
+    private ItemStack choiceItem(Reward reward, PendingChoice pending) {
+        ItemStack item = rewardDisplayItem(reward);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.getPersistentDataContainer().set(choiceRewardKey, PersistentDataType.STRING, reward.getId());
+            List<net.kyori.adventure.text.Component> lore = meta.lore() == null
+                ? new ArrayList<>() : new ArrayList<>(meta.lore());
+            long selected = pending.selected.stream().filter(candidate -> candidate == reward).count();
+            lore.add(ColorUtil.component("&aSelected: &f" + selected + "&7/&f" + pending.target));
+            lore.add(ColorUtil.component("&eClick again to select this reward multiple times."));
+            meta.lore(lore);
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 
     private void playAnimation(Player player, Crate crate, List<Reward> rewards, List<Reward> eligible) {
