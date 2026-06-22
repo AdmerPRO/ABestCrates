@@ -381,6 +381,9 @@ public class GuiManager implements Listener {
             handleRewardItemsClick(player, holder, event);
             return;
         }
+        if (holder.getType() == MenuType.REWARDS && handleLootTableInsert(player, holder, event)) {
+            return;
+        }
         if (event.getRawSlot() >= event.getInventory().getSize()) {
             if (event.isShiftClick()) {
                 event.setCancelled(true);
@@ -418,6 +421,10 @@ public class GuiManager implements Listener {
                 .filter(slot -> slot < event.getInventory().getSize())
                 .allMatch(slot -> slot < 27);
             event.setCancelled(!onlyEditableSlots);
+            if (onlyEditableSlots) {
+                Bukkit.getScheduler().runTask(plugin,
+                    () -> saveRewardItems(holder, event.getView().getTopInventory()));
+            }
             return;
         }
         event.setCancelled(true);
@@ -580,6 +587,8 @@ public class GuiManager implements Listener {
         int rawSlot = event.getRawSlot();
         int topSize = event.getView().getTopInventory().getSize();
         if (rawSlot < 27) {
+            Bukkit.getScheduler().runTask(plugin,
+                () -> saveRewardItems(holder, event.getView().getTopInventory()));
             return;
         }
         if (rawSlot >= topSize) {
@@ -594,6 +603,7 @@ public class GuiManager implements Listener {
                     if (!isUsableItem(top.getItem(slot))) {
                         top.setItem(slot, source.clone());
                         event.setCurrentItem(null);
+                        Bukkit.getScheduler().runTask(plugin, () -> saveRewardItems(holder, top));
                         return;
                     }
                 }
@@ -607,6 +617,24 @@ public class GuiManager implements Listener {
         saveRewardItems(holder, event.getView().getTopInventory());
         crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
             crate.getReward(holder.getRewardId()).ifPresent(reward -> openRewardEdit(player, crate, reward)));
+    }
+
+    private boolean handleLootTableInsert(Player player, MenuHolder holder, InventoryClickEvent event) {
+        ItemStack source = null;
+        if (event.getRawSlot() >= event.getView().getTopInventory().getSize() && event.isShiftClick()) {
+            source = event.getCurrentItem();
+        } else if (event.getRawSlot() >= 0 && event.getRawSlot() < 45) {
+            source = event.getCursor();
+        }
+        if (!isUsableItem(source)) {
+            return false;
+        }
+
+        event.setCancelled(true);
+        ItemStack copiedItem = source.clone();
+        crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
+            Bukkit.getScheduler().runTask(plugin, () -> addItemReward(player, crate, copiedItem)));
+        return true;
     }
 
     private void saveRewardItems(MenuHolder holder, Inventory inventory) {
