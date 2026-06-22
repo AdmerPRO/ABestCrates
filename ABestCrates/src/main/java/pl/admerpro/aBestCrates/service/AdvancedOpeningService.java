@@ -117,6 +117,9 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             return;
         }
         event.setCancelled(true);
+        if (event.getRawSlot() < 0 || event.getRawSlot() >= event.getInventory().getSize()) {
+            return;
+        }
         ItemStack clicked = event.getCurrentItem();
         PendingChoice pending = pendingChoices.get(player.getUniqueId());
         if (clicked == null || !clicked.hasItemMeta() || pending == null) {
@@ -126,7 +129,8 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             .get(choiceRewardKey, PersistentDataType.STRING);
         Reward reward = rewardId == null ? null : pending.rewards.stream()
             .filter(candidate -> candidate.getId().equalsIgnoreCase(rewardId)).findFirst().orElse(null);
-        if (reward == null || !isEligible(player, pending.crate, reward)) {
+        if (reward == null || !isEligible(player, pending.crate, reward,
+            selectedCount(pending.selected, reward))) {
             return;
         }
         pending.selected.add(reward);
@@ -221,7 +225,7 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             openChoiceMenu(player, pending);
             return;
         }
-        List<Reward> rewards = rollRepeated(eligible, crate.getRewardRolls());
+        List<Reward> rewards = rollRepeated(player, crate, eligible, crate.getRewardRolls());
         if (!forced && crate.getAnimationType() != AnimationType.INSTANT) {
             playAnimation(player, crate, rewards, eligible);
         } else {
@@ -239,13 +243,9 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         if (pending == null) {
             return;
         }
-        while (pending.selected.size() < pending.target && !pending.rewards.isEmpty()) {
-            Reward selected = roll(pending.rewards);
-            if (selected == null) {
-                selected = pending.rewards.get(0);
-            }
-            pending.selected.add(selected);
-        }
+        int remaining = Math.max(0, pending.target - pending.selected.size());
+        pending.selected.addAll(rollRepeated(player, pending.crate, pending.rewards,
+            remaining, pending.selected));
         completeOpen(player, pending.crate, pending.selected);
     }
 
@@ -371,9 +371,13 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
     }
 
     private boolean isEligible(Player player, Crate crate, Reward reward) {
+        return isEligible(player, crate, reward, 0);
+    }
+
+    private boolean isEligible(Player player, Crate crate, Reward reward, int reservedAmount) {
         return reward.getRequiredPermissions().stream().allMatch(player::hasPermission)
             && reward.getBlockedPermissions().stream().noneMatch(player::hasPermission)
-            && playerData.canReceive(player, crate, reward)
+            && playerData.canReceive(player, crate, reward, reservedAmount)
             && weightedChance(reward) > 0.0D;
     }
 
@@ -394,24 +398,43 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
     }
 
     private List<Reward> rollRewards(Player player, Crate crate) {
-        return rollRepeated(eligibleRewards(player, crate), crate.getRewardRolls());
+        return rollRepeated(player, crate, eligibleRewards(player, crate), crate.getRewardRolls());
     }
 
-    private List<Reward> rollRepeated(List<Reward> rewards, int requested) {
+    private List<Reward> rollRepeated(Player player, Crate crate, List<Reward> rewards, int requested) {
+        return rollRepeated(player, crate, rewards, requested, List.of());
+    }
+
+    private List<Reward> rollRepeated(Player player, Crate crate, List<Reward> rewards, int requested,
+                                      List<Reward> reservedRewards) {
         List<Reward> result = new ArrayList<>();
-        while (!rewards.isEmpty() && result.size() < Math.max(1, requested)) {
-            Reward reward = roll(rewards);
+        List<Reward> reservations = new ArrayList<>(reservedRewards);
+        while (!rewards.isEmpty() && result.size() < Math.max(0, requested)) {
+            List<Reward> candidates = rewards.stream()
+                .filter(reward -> isEligible(player, crate, reward, selectedCount(reservations, reward)))
+                .toList();
+            if (candidates.isEmpty()) {
+                break;
+            }
+            Reward reward = roll(candidates);
             if (reward == null) {
                 break;
             }
             result.add(reward);
+            reservations.add(reward);
         }
         return result;
     }
 
+    private int selectedCount(List<Reward> selected, Reward reward) {
+        return (int) selected.stream()
+            .filter(candidate -> candidate.getId().equalsIgnoreCase(reward.getId()))
+            .count();
+    }
+
     private double weightedChance(Reward reward) {
         double rarityMultiplier = plugin.getConfig().getDouble(
-            "rarities." + reward.getRarity().toLowerCase() + ".multiplier", 1.0D);
+            "rarities." + reward.getRarity().toLowerCase(Locale.ROOT) + ".multiplier", 1.0D);
         return Math.max(0.0D, reward.getWeight() * Math.max(0.0D, rarityMultiplier));
     }
 
@@ -425,12 +448,22 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             messageService.send(player, "crate-empty", Map.of("%crate%", crate.getId()));
             return;
         }
+        List<Reward> grantableRewards = new ArrayList<>();
         for (Reward reward : rewards) {
-            giveReward(player, crate, reward, announceResults && rewards.size() == 1);
+            if (isEligible(player, crate, reward, selectedCount(grantableRewards, reward))) {
+                grantableRewards.add(reward);
+            }
         }
-        if (announceResults && rewards.size() > 1) {
+        if (grantableRewards.isEmpty()) {
+            messageService.send(player, "crate-empty", Map.of("%crate%", crate.getId()));
+            return;
+        }
+        for (Reward reward : grantableRewards) {
+            giveReward(player, crate, reward, announceResults && grantableRewards.size() == 1);
+        }
+        if (announceResults && grantableRewards.size() > 1) {
             messageService.send(player, "rewards-received", Map.of(
-                "%amount%", String.valueOf(rewards.size()), "%crate%", crate.getId(),
+                "%amount%", String.valueOf(grantableRewards.size()), "%crate%", crate.getId(),
                 "%crate_displayname%", crate.getDisplayName()));
         }
         if (finishSound) {
@@ -514,7 +547,7 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         List<ItemStack> displayItems = eligible.stream().map(this::rewardDisplayItem).toList();
         AnimationProfile profile = profile(crate.getAnimationType());
         List<ItemStack> reel = new ArrayList<>();
-        for (int ignored : profile.slots) {
+        while (reel.size() < profile.slots.length) {
             reel.add(displayItems.get(random.nextInt(displayItems.size())).clone());
         }
         ActiveAnimation animation = new ActiveAnimation(player, crate, inventory, rewards, displayItems,
@@ -584,7 +617,7 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             fillInventory(animation.inventory, filler());
         }
         AnimationType animationType = animation.crate.getAnimationType();
-        int[] resultSlots = resultSlots(animationType, animation.rewards.size(), animation.profile);
+        int[] resultSlots = resultSlots(animationType, animation.rewards.size());
         if (animationType == AnimationType.CLASSIC) {
             renderClassicGuides(animation);
         }
@@ -592,16 +625,8 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             Reward reward = animation.rewards.get(index);
             int resultSlot = resultSlots[index];
             animation.inventory.setItem(resultSlot, rewardDisplayItem(reward));
-            if (animationType == AnimationType.ROLL || animationType == AnimationType.CSGO) {
-                ItemStack marker = winnerMarker(reward, index + 1);
-                animation.inventory.setItem(resultSlot - 9, marker);
-                animation.inventory.setItem(resultSlot + 9, marker.clone());
-            } else if (animationType == AnimationType.COSMIC && resultSlot >= 9 && resultSlot <= 17) {
-                ItemStack marker = winnerMarker(reward, index + 1);
-                animation.inventory.setItem(resultSlot - 9, marker);
-                animation.inventory.setItem(resultSlot + 9, marker.clone());
-            } else if (animationType != AnimationType.CASINO && animationType != AnimationType.CLASSIC
-                && resultSlot >= 9) {
+            if (animationType != AnimationType.CASINO && animationType != AnimationType.CLASSIC
+                && resultSlot >= 9 && resultSlot <= 17) {
                 animation.inventory.setItem(resultSlot - 9, winnerMarker(reward, index + 1));
             }
         }
@@ -646,13 +671,9 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         };
     }
 
-    private int[] resultSlots(AnimationType animationType, int amount, AnimationProfile profile) {
+    private int[] resultSlots(AnimationType animationType, int amount) {
         if (animationType == AnimationType.CASINO) {
             return casinoResultSlots(amount);
-        }
-        if (animationType == AnimationType.COSMIC) {
-            int count = Math.max(1, Math.min(Math.min(9, amount), profile.slots.length));
-            return java.util.Arrays.copyOf(profile.slots, count);
         }
         return centeredSlots(amount);
     }

@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.logging.Level;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -43,7 +44,7 @@ public class PlayerDataService {
     }
 
     public long remainingCooldown(UUID uuid, Crate crate) {
-        long expiresAt = data.getLong(playerPath(uuid) + ".cooldowns." + crate.getId().toLowerCase(), 0L);
+        long expiresAt = data.getLong(playerPath(uuid) + ".cooldowns." + crate.getId().toLowerCase(Locale.ROOT), 0L);
         return Math.max(0L, (expiresAt - System.currentTimeMillis() + 999L) / 1000L);
     }
 
@@ -51,7 +52,7 @@ public class PlayerDataService {
         if (crate.getCooldownSeconds() <= 0L) {
             return;
         }
-        data.set(playerPath(uuid) + ".cooldowns." + crate.getId().toLowerCase(),
+        data.set(playerPath(uuid) + ".cooldowns." + crate.getId().toLowerCase(Locale.ROOT),
             System.currentTimeMillis() + crate.getCooldownSeconds() * 1000L);
         markDirty();
     }
@@ -62,27 +63,36 @@ public class PlayerDataService {
         int streak = lastCrate.equalsIgnoreCase(crate.getId()) ? data.getInt(path + ".streak.amount", 0) + 1 : 1;
         data.set(path + ".streak.crate", crate.getId());
         data.set(path + ".streak.amount", streak);
-        String totalPath = path + ".opens." + crate.getId().toLowerCase();
+        String totalPath = path + ".opens." + crate.getId().toLowerCase(Locale.ROOT);
         data.set(totalPath, data.getInt(totalPath, 0) + 1);
         markDirty();
         return streak;
     }
 
     public int getOpenCount(UUID uuid, String crateId) {
-        return data.getInt(playerPath(uuid) + ".opens." + crateId.toLowerCase(), 0);
+        return data.getInt(playerPath(uuid) + ".opens." + crateId.toLowerCase(Locale.ROOT), 0);
     }
 
     public boolean canReceive(Player player, Crate crate, Reward reward) {
-        String rewardKey = crate.getId().toLowerCase() + "." + reward.getId().toLowerCase();
-        if (reward.getGlobalLimit() > 0 && data.getInt("global-rewards." + rewardKey, 0) >= reward.getGlobalLimit()) {
+        return canReceive(player, crate, reward, 0);
+    }
+
+    public boolean canReceive(Player player, Crate crate, Reward reward, int reservedAmount) {
+        String rewardKey = crate.getId().toLowerCase(Locale.ROOT) + "."
+            + reward.getId().toLowerCase(Locale.ROOT);
+        int reserved = Math.max(0, reservedAmount);
+        if (reward.getGlobalLimit() > 0
+            && data.getInt("global-rewards." + rewardKey, 0) + reserved >= reward.getGlobalLimit()) {
             return false;
         }
         return reward.getPlayerLimit() <= 0
-            || data.getInt(playerPath(player.getUniqueId()) + ".rewards." + rewardKey, 0) < reward.getPlayerLimit();
+            || data.getInt(playerPath(player.getUniqueId()) + ".rewards." + rewardKey, 0) + reserved
+                < reward.getPlayerLimit();
     }
 
     public void recordReward(Player player, Crate crate, Reward reward) {
-        String rewardKey = crate.getId().toLowerCase() + "." + reward.getId().toLowerCase();
+        String rewardKey = crate.getId().toLowerCase(Locale.ROOT) + "."
+            + reward.getId().toLowerCase(Locale.ROOT);
         String playerRewardPath = playerPath(player.getUniqueId()) + ".rewards." + rewardKey;
         data.set(playerRewardPath, data.getInt(playerRewardPath, 0) + 1);
         data.set("global-rewards." + rewardKey, data.getInt("global-rewards." + rewardKey, 0) + 1);
