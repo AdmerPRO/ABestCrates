@@ -560,10 +560,11 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         fillInventory(animation.inventory, filler());
         int[] resultSlots = centeredSlots(animation.rewards.size());
         for (int index = 0; index < animation.rewards.size(); index++) {
-            animation.inventory.setItem(resultSlots[index], rewardDisplayItem(animation.rewards.get(index)));
+            Reward reward = animation.rewards.get(index);
+            int resultSlot = resultSlots[index];
+            animation.inventory.setItem(resultSlot, rewardDisplayItem(reward));
+            animation.inventory.setItem(resultSlot - 9, winnerMarker(reward, index + 1));
         }
-        animation.inventory.setItem(4, centerMarker());
-        animation.inventory.setItem(22, centerMarker());
         completeOpen(animation.player, animation.crate, animation.rewards);
     }
 
@@ -662,11 +663,12 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
             ? new ItemStack(Material.PAPER) : customItems.refresh(display);
     }
 
-    private ItemStack centerMarker() {
+    private ItemStack winnerMarker(Reward reward, int number) {
         ItemStack item = new ItemStack(Material.LIME_BANNER);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(ColorUtil.component("&aWinner"));
+            meta.displayName(ColorUtil.component("&aWinner #" + number));
+            meta.lore(List.of(ColorUtil.component("&7Reward: &f" + rewardName(reward))));
             item.setItemMeta(meta);
         }
         return item;
