@@ -2,7 +2,7 @@
 
 All notable changes to the ABestCrates project are documented in this file.
 
-## [Unreleased] - 2026-06-21
+## [1.2.0] - 2026-06-22
 
 ### Added
 
