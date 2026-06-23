@@ -2,6 +2,8 @@ package pl.admerpro.aBestCrates.storage;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -11,8 +13,11 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.model.AnimationType;
@@ -25,6 +30,10 @@ import pl.admerpro.aBestCrates.model.Reward;
 
 public class CrateStorage {
     public static final int CURRENT_CONFIG_VERSION = 2;
+    private static final Pattern ITEM_STACK_START_PATTERN = Pattern.compile("^(\\s*)==:\\s*org\\.bukkit\\.inventory\\.ItemStack\\s*$");
+    private static final Pattern NAMESPACED_ITEM_MATERIAL_PATTERN = Pattern.compile("^(\\s*)(id|type):\\s*minecraft:([a-z0-9_]+)\\s*$");
+    private static final Pattern ITEM_COUNT_PATTERN = Pattern.compile("^(\\s*)count:\\s*(\\d+)\\s*$");
+    private static final Pattern ITEM_VERSION_PATTERN = Pattern.compile("^\\s*(DataVersion|schema_version):\\s*.*$");
 
     private final JavaPlugin plugin;
     private final File file;
@@ -41,8 +50,8 @@ public class CrateStorage {
             return new ArrayList<>();
         }
 
-        YamlConfiguration configuration = YamlConfiguration.loadConfiguration(file);
-        YamlConfiguration keysConfiguration = YamlConfiguration.loadConfiguration(keysFile);
+        YamlConfiguration configuration = loadConfiguration(file);
+        YamlConfiguration keysConfiguration = loadConfiguration(keysFile);
         ConfigurationSection cratesSection = configuration.getConfigurationSection("crates");
         if (cratesSection == null) {
             return new ArrayList<>();
@@ -134,7 +143,7 @@ public class CrateStorage {
             return Optional.empty();
         }
 
-        YamlConfiguration configuration = YamlConfiguration.loadConfiguration(templateFile);
+        YamlConfiguration configuration = loadConfiguration(templateFile);
         ConfigurationSection cratesSection = configuration.getConfigurationSection("crates");
         if (cratesSection == null || cratesSection.getKeys(false).isEmpty()) {
             return Optional.empty();
@@ -336,8 +345,86 @@ public class CrateStorage {
     }
 
     private Material readMaterial(String value, Material fallback) {
-        Material material = value == null ? null : Material.matchMaterial(value);
+        Material material = value == null ? null : Material.matchMaterial(value, false);
         return material == null ? fallback : material;
+    }
+
+    private YamlConfiguration loadConfiguration(File source) {
+        YamlConfiguration configuration = new YamlConfiguration();
+        try {
+            if (!source.exists()) {
+                return configuration;
+            }
+            String content = Files.readString(source.toPath(), StandardCharsets.UTF_8);
+            configuration.loadFromString(normalizeSerializedItemStacks(content));
+        } catch (IOException | InvalidConfigurationException exception) {
+            plugin.getLogger().log(Level.SEVERE, "Could not load " + source.getName() + ".", exception);
+        }
+        return configuration;
+    }
+
+    static String normalizeSerializedItemStacks(String content) {
+        StringBuilder normalized = new StringBuilder(content.length());
+        String[] lines = content.split("\\R", -1);
+        int itemStackIndent = -1;
+        boolean appendedLine = false;
+        for (String originalLine : lines) {
+            String line = originalLine;
+            if (itemStackIndent >= 0 && !line.isBlank() && indentation(line) < itemStackIndent) {
+                itemStackIndent = -1;
+            }
+
+            Matcher itemStackMatcher = ITEM_STACK_START_PATTERN.matcher(line);
+            if (itemStackMatcher.matches()) {
+                itemStackIndent = itemStackMatcher.group(1).length();
+            }
+
+            if (itemStackIndent >= 0 && indentation(line) == itemStackIndent) {
+                line = normalizeSerializedItemStackLine(line);
+            }
+
+            if (line == null) {
+                continue;
+            }
+            if (appendedLine) {
+                normalized.append(System.lineSeparator());
+            }
+            normalized.append(line);
+            appendedLine = true;
+        }
+        return normalized.toString();
+    }
+
+    private static String normalizeSerializedItemStackLine(String line) {
+        if (ITEM_VERSION_PATTERN.matcher(line).matches()) {
+            return null;
+        }
+
+        Matcher materialMatcher = NAMESPACED_ITEM_MATERIAL_PATTERN.matcher(line);
+        if (materialMatcher.matches()) {
+            return materialMatcher.group(1) + "type: " + readSerializedMaterialName(materialMatcher.group(3));
+        }
+
+        Matcher countMatcher = ITEM_COUNT_PATTERN.matcher(line);
+        if (countMatcher.matches()) {
+            return countMatcher.group(1) + "amount: " + countMatcher.group(2);
+        }
+
+        return line;
+    }
+
+    private static String readSerializedMaterialName(String materialId) {
+        String materialName = materialId.toUpperCase(java.util.Locale.ROOT);
+        Material material = Material.matchMaterial(materialName, false);
+        return material == null ? Material.STONE.name() : material.name();
+    }
+
+    private static int indentation(String line) {
+        int indentation = 0;
+        while (indentation < line.length() && Character.isWhitespace(line.charAt(indentation))) {
+            indentation++;
+        }
+        return indentation;
     }
 
     private String migratedId(String source, Set<String> usedIds) {

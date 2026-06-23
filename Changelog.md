@@ -22,10 +22,15 @@ All notable changes to the ABestCrates project are documented in this file.
 - Renamed `ModrithReadme.md` to `ModrinthReadme.md`.
 - Bumped the 1.21.x branch plugin version to `1.2.2`.
 
+### Fixed
+
+- Normalized modern Paper serialized `ItemStack` material/count fields before loading crate files to avoid `Material cannot be null` startup errors.
+- Avoided startup warnings from trying to copy bundled `crates.yml`, `keys.yml`, and `messages.yml` over existing files.
+
 ### Verification
 
 - Built the project using the local Java 21 and Maven 3.9.9 toolchain.
-- Verified `14` unit tests pass.
+- Verified `17` unit tests pass.
 
 ## [1.2.1] - 2026-06-23
 
