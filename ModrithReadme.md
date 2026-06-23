@@ -138,7 +138,7 @@ The **Give Keys To** menu performs the entire physical/virtual key workflow with
 
 ## Compatibility
 
-ABestCrates requires Java 21 and Paper 1.21.x.
+ABestCrates requires Java 21 and Paper 1.21.x or 1.20.x.
 
 ## License
 

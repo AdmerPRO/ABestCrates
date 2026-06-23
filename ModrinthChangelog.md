@@ -14,10 +14,6 @@ Version 1.2.1 is a stability release for the Paper 1.21.x branch.
 - Reward lookup and removal now handle null IDs safely, and blank reward IDs are normalized to a safe fallback.
 - README and Modrinth README now reference the `1.2.1` artifact and complete permission list.
 
-## Version
-
-- Project version bumped to `1.2.1`.
-
 ## Requirements
 
 - Java 21.
