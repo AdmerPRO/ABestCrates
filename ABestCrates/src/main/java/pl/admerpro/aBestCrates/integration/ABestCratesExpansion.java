@@ -47,6 +47,9 @@ public class ABestCratesExpansion extends PlaceholderExpansion {
         if (player == null) {
             return "0";
         }
+        if (params == null || params.isBlank()) {
+            return null;
+        }
         if (params.startsWith("virtual_")) {
             return String.valueOf(keyManager.getVirtualKeys(player.getUniqueId(), params.substring("virtual_".length())));
         }

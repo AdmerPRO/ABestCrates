@@ -390,7 +390,7 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         double cursor = 0.0D;
         for (Reward reward : rewards) {
             cursor += weightedChance(reward);
-            if (value <= cursor) {
+            if (value < cursor) {
                 return reward;
             }
         }

@@ -45,12 +45,12 @@ mvn -f ABestCrates/pom.xml -q -DskipTests package
 The release jar is generated at:
 
 ```text
-ABestCrates/target/ABestCrates-1.1.0.jar
+ABestCrates/target/ABestCrates-1.2.1.jar
 ```
 
 ## Installation
 
-1. Put `ABestCrates-1.1.0.jar` in your server `plugins` folder.
+1. Put `ABestCrates-1.2.1.jar` in your server `plugins` folder.
 2. Start or restart the Paper server.
 3. Use `/abc gui` to open the main GUI.
 

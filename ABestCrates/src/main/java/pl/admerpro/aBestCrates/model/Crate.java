@@ -232,10 +232,13 @@ public class Crate {
     }
 
     public boolean removeReward(String rewardId) {
-        return rewards.removeIf(reward -> reward.getId().equalsIgnoreCase(rewardId));
+        return rewardId != null && rewards.removeIf(reward -> reward.getId().equalsIgnoreCase(rewardId));
     }
 
     public Optional<Reward> getReward(String rewardId) {
+        if (rewardId == null) {
+            return Optional.empty();
+        }
         return rewards.stream()
             .filter(reward -> reward.getId().equalsIgnoreCase(rewardId))
             .findFirst();
@@ -251,7 +254,7 @@ public class Crate {
         double cursor = 0.0D;
         for (Reward reward : rewards) {
             cursor += reward.getRealChance();
-            if (roll <= cursor) {
+            if (roll < cursor) {
                 return Optional.of(reward);
             }
         }

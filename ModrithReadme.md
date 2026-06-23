@@ -117,6 +117,7 @@ abestcrates.open
 abestcrates.create
 abestcrates.givekey
 abestcrates.reload
+abestcrates.crateitem
 ```
 
 Players need `abestcrates.use` to open crates.
@@ -137,7 +138,11 @@ The **Give Keys To** menu performs the entire physical/virtual key workflow with
 
 ## Compatibility
 
-ABestCrates requires Java 21 and Paper 1.21.x.
+ABestCrates supports Paper 1.20.1-1.20.6.
+
+- Use Java 17 for Paper 1.20.1-1.20.4.
+- Use Java 21 for Paper 1.20.5-1.20.6.
+- The plugin is compiled for Java 17.
 
 ## License
 

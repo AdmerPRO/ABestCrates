@@ -321,13 +321,18 @@ public class KeyManager {
     public void renameVirtualCrate(String oldId, String newId) {
         String oldKey = key(oldId);
         String newKey = key(newId);
+        boolean changed = false;
         for (Map<String, Integer> playerKeys : virtualKeys.values()) {
             Integer amount = playerKeys.remove(oldKey);
             if (amount != null) {
                 playerKeys.merge(newKey, amount, Integer::sum);
+                changed = true;
             }
         }
-        save();
+        if (changed) {
+            save();
+            changeListener.run();
+        }
     }
 
     public void removeVirtualCrate(String crateId) {
@@ -417,6 +422,13 @@ public class KeyManager {
         Map<String, Integer> playerKeys = virtualKeys.computeIfAbsent(uuid, ignored -> new HashMap<>());
         String normalizedCrate = key(crateId);
         int remaining = Math.max(0, playerKeys.getOrDefault(normalizedCrate, 0) - amount);
+        if (remaining <= 0) {
+            playerKeys.remove(normalizedCrate);
+            if (playerKeys.isEmpty()) {
+                virtualKeys.remove(uuid);
+            }
+            return;
+        }
         playerKeys.put(normalizedCrate, remaining);
     }
 

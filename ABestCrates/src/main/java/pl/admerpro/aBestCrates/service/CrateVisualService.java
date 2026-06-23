@@ -94,7 +94,7 @@ public class CrateVisualService implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onTeleport(PlayerTeleportEvent event) {
-        if (event.getTo().getWorld() != event.getFrom().getWorld()) {
+        if (event.getTo() != null && event.getTo().getWorld() != event.getFrom().getWorld()) {
             Bukkit.getScheduler().runTask(plugin, this::refreshVirtualDisplays);
         }
     }

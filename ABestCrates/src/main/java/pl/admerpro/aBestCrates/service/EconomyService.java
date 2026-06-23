@@ -43,6 +43,10 @@ public class EconomyService {
     }
 
     private EconomyHook hook() {
+        if (!Bukkit.getPluginManager().isPluginEnabled("Vault")) {
+            hook = null;
+            return null;
+        }
         if (hook == null) {
             connect();
         }
@@ -50,6 +54,7 @@ public class EconomyService {
     }
 
     private void connect() {
+        hook = null;
         if (!Bukkit.getPluginManager().isPluginEnabled("Vault")) {
             return;
         }
