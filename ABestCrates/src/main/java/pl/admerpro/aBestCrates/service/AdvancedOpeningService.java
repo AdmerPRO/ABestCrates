@@ -39,7 +39,7 @@ import pl.admerpro.aBestCrates.model.CrateType;
 import pl.admerpro.aBestCrates.model.Reward;
 import pl.admerpro.aBestCrates.util.ColorUtil;
 
-public class AdvancedOpeningService extends OpeningService implements Listener {
+public class AdvancedOpeningService implements OpeningService, Listener {
     private final JavaPlugin plugin;
     private final KeyManager keyManager;
     private final MessageService messageService;
@@ -56,7 +56,6 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
     public AdvancedOpeningService(JavaPlugin plugin, KeyManager keyManager, MessageService messageService,
                                   PlayerDataService playerData, EconomyService economyService,
                                   PlaceholderService placeholderService, CustomItemIntegrationService customItems) {
-        super(plugin, keyManager, messageService);
         this.plugin = plugin;
         this.keyManager = keyManager;
         this.messageService = messageService;
@@ -469,7 +468,7 @@ public class AdvancedOpeningService extends OpeningService implements Listener {
         if (finishSound) {
             playConfiguredSound(player, "sounds.opening.finish", Sound.ENTITY_PLAYER_LEVELUP);
         }
-        int streak = playerData.recordOpen(player.getUniqueId(), crate);
+        int streak = playerData.recordOpen(player, crate);
         String milestoneRewardId = crate.getMilestones().get(streak);
         if (milestoneRewardId != null) {
             crate.getReward(milestoneRewardId).filter(candidate -> isEligible(player, crate, candidate)).ifPresent(milestone -> {

@@ -1,3 +1,5 @@
+config-version: 2
+
 # Key definitions are written here automatically by the in-game editor.
 # Existing keys nested in crates.yml are migrated on the next save.
 keys: {}

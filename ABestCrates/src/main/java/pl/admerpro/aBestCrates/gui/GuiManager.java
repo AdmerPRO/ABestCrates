@@ -1,5 +1,6 @@
 package pl.admerpro.aBestCrates.gui;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -20,6 +22,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.manager.CrateLocationManager;
@@ -30,6 +33,7 @@ import pl.admerpro.aBestCrates.model.KeyRequirement;
 import pl.admerpro.aBestCrates.model.Reward;
 import pl.admerpro.aBestCrates.service.MessageService;
 import pl.admerpro.aBestCrates.service.AdvancedOpeningService;
+import pl.admerpro.aBestCrates.service.PlayerDataService;
 import pl.admerpro.aBestCrates.util.ColorUtil;
 import pl.admerpro.aBestCrates.util.ItemBuilder;
 
@@ -51,6 +55,7 @@ public class GuiManager implements Listener {
     private final ChatInputManager chatInputManager;
     private final MessageService messageService;
     private final AdvancedOpeningService openingService;
+    private final PlayerDataService playerDataService;
     private final NamespacedKey crateTag;
     private final NamespacedKey rewardTag;
     private final NamespacedKey playerTag;
@@ -73,7 +78,8 @@ public class GuiManager implements Listener {
     );
 
     public GuiManager(JavaPlugin plugin, CrateManager crateManager, KeyManager keyManager, CrateLocationManager crateLocationManager,
-                      ChatInputManager chatInputManager, MessageService messageService, AdvancedOpeningService openingService) {
+                      ChatInputManager chatInputManager, MessageService messageService, AdvancedOpeningService openingService,
+                      PlayerDataService playerDataService) {
         this.plugin = plugin;
         this.crateManager = crateManager;
         this.keyManager = keyManager;
@@ -81,6 +87,7 @@ public class GuiManager implements Listener {
         this.chatInputManager = chatInputManager;
         this.messageService = messageService;
         this.openingService = openingService;
+        this.playerDataService = playerDataService;
         this.crateTag = new NamespacedKey(plugin, "gui_crate");
         this.rewardTag = new NamespacedKey(plugin, "gui_reward");
         this.playerTag = new NamespacedKey(plugin, "gui_player");
@@ -96,10 +103,37 @@ public class GuiManager implements Listener {
         inventory.setItem(14, new ItemBuilder(Material.TRIPWIRE_HOOK).name("&eGive Keys To").lore(List.of(
             "&7Select key type, crate and player.",
             "&7Enter the amount directly in chat.")).build());
-        inventory.setItem(16, new ItemBuilder(Material.WRITABLE_BOOK).name("&bLogs & Limits").lore(List.of(
-            "&7Reward rolls: &fplugins/ABestCrates/reward-rolls.log",
-            "&7Counts and limits: &fplayer-data.yml")).build());
+        inventory.setItem(16, new ItemBuilder(Material.WRITABLE_BOOK).name("&bAdmin Tools").lore(List.of(
+            "&7Reset player data and limits.",
+            "&7Duplicate crates or move templates.")).build());
         inventory.setItem(22, new ItemBuilder(Material.REDSTONE).name("&cReload").lore(List.of("&7Reload files from disk.")).build());
+        fillEmpty(inventory);
+        openMenu(player, inventory);
+    }
+
+    public void openAdminTools(Player player) {
+        MenuHolder holder = new MenuHolder(MenuType.ADMIN_TOOLS, null);
+        Inventory inventory = Bukkit.createInventory(holder, 27, ColorUtil.component("&5Admin Tools"));
+        holder.setInventory(inventory);
+
+        inventory.setItem(10, new ItemBuilder(Material.CLOCK).name("&bReset Cooldowns").lore(List.of(
+            "&7Input: player [crate|all].")).build());
+        inventory.setItem(11, new ItemBuilder(Material.WRITABLE_BOOK).name("&aReset Player Stats").lore(List.of(
+            "&7Input: player [crate|all].")).build());
+        inventory.setItem(12, new ItemBuilder(Material.REPEATER).name("&cReset Player Limits").lore(List.of(
+            "&7Input: player [crate|all] [reward|all].")).build());
+        inventory.setItem(13, new ItemBuilder(Material.REDSTONE_BLOCK).name("&4Reset Global Limits").lore(List.of(
+            "&7Input: [crate|all] [reward|all].")).build());
+        inventory.setItem(14, new ItemBuilder(Material.CHEST).name("&dDuplicate Crate").lore(List.of(
+            "&7Input: source newName.")).build());
+        inventory.setItem(15, new ItemBuilder(Material.MAP).name("&eExport Template").lore(List.of(
+            "&7Input: crate [file].")).build());
+        inventory.setItem(16, new ItemBuilder(Material.BOOK).name("&6Import Template").lore(List.of(
+            "&7Input: file [newName].")).build());
+        inventory.setItem(20, new ItemBuilder(Material.COMPASS).name("&bStatistics").lore(List.of(
+            "&7Inspect player and crate opens.",
+            "&7Shows totals and popular crates.")).build());
+        inventory.setItem(22, new ItemBuilder(Material.ARROW).name("&eBack").build());
         fillEmpty(inventory);
         openMenu(player, inventory);
     }
@@ -348,6 +382,232 @@ public class GuiManager implements Listener {
             inventory.setItem(slot++, tag(new ItemBuilder(Material.PLAYER_HEAD).name("&f" + target.getName())
                 .lore(List.of("&eClick to select.")).build(), playerTag, target.getName()));
         }
+        inventory.setItem(47, new ItemBuilder(Material.NAME_TAG).name("&bInsert Nickname").lore(List.of(
+            "&7Type a player name in chat.",
+            "&7Virtual keys can target offline players.")).build());
+        inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        fillEmpty(inventory);
+        openMenu(player, inventory);
+    }
+
+    private void openStatsMenu(Player player) {
+        MenuHolder holder = new MenuHolder(MenuType.STATS_MENU, null);
+        Inventory inventory = Bukkit.createInventory(holder, 27, ColorUtil.component("&5Statistics"));
+        holder.setInventory(inventory);
+
+        inventory.setItem(10, new ItemBuilder(Material.PLAYER_HEAD).name("&bPlayer Opens").lore(List.of(
+            "&7Pick a head or type a nickname.",
+            "&7Shows crates opened by that player.")).build());
+        inventory.setItem(12, new ItemBuilder(Material.CHEST).name("&dCrate Openers").lore(List.of(
+            "&7Pick a crate.",
+            "&7Shows players who opened it.")).build());
+        inventory.setItem(14, new ItemBuilder(Material.NETHER_STAR).name("&6Popular Crates").lore(List.of(
+            "&7Rank crates by total opens.")).build());
+        inventory.setItem(16, new ItemBuilder(Material.WRITABLE_BOOK).name("&aPlayer Totals").lore(List.of(
+            "&7Rank players by total opens.")).build());
+        inventory.setItem(22, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        fillEmpty(inventory);
+        openMenu(player, inventory);
+    }
+
+    private void openStatsPlayerSelect(Player player) {
+        openStatsPlayerSelect(player, 0);
+    }
+
+    private void openStatsPlayerSelect(Player player, int requestedPage) {
+        List<Map.Entry<UUID, Integer>> players = new ArrayList<>(playerDataService.getPlayerTotals().entrySet());
+        int page = boundedPage(requestedPage, players.size(), 45);
+        MenuHolder holder = new MenuHolder(MenuType.STATS_PLAYER_SELECT, null, null, page);
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Select Player"));
+        holder.setInventory(inventory);
+
+        int slot = 0;
+        for (Map.Entry<UUID, Integer> entry : pageItems(players, page, 45)) {
+            UUID uuid = entry.getKey();
+            String name = playerDataService.getKnownPlayerName(uuid);
+            inventory.setItem(slot++, tag(playerHead(uuid, name, List.of(
+                "&7Total opens: &f" + entry.getValue(),
+                "&eClick to inspect."
+            )), playerTag, uuid.toString()));
+        }
+        if (players.isEmpty()) {
+            inventory.setItem(22, new ItemBuilder(Material.BARRIER).name("&cNo Stored Player Stats").lore(List.of(
+                "&7Open data appears here after players use crates.")).build());
+        }
+        addPageButtons(inventory, page, players.size(), 45);
+        inventory.setItem(47, new ItemBuilder(Material.NAME_TAG).name("&bInsert Nickname").lore(List.of(
+            "&7Type a player name in chat.")).build());
+        inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        fillEmpty(inventory);
+        openMenu(player, inventory);
+    }
+
+    private void openStatsPlayerDetail(Player player, UUID uuid) {
+        openStatsPlayerDetail(player, uuid, 0);
+    }
+
+    private void openStatsPlayerDetail(Player player, UUID uuid, int requestedPage) {
+        List<Map.Entry<String, Integer>> crates = new ArrayList<>(playerDataService.getPlayerOpenCounts(uuid).entrySet());
+        int page = boundedPage(requestedPage, crates.size(), 45);
+        String name = playerDataService.getKnownPlayerName(uuid);
+        MenuHolder holder = new MenuHolder(MenuType.STATS_PLAYER_DETAIL, uuid.toString(), null, page);
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Stats: " + name));
+        holder.setInventory(inventory);
+
+        int slot = 0;
+        for (Map.Entry<String, Integer> entry : pageItems(crates, page, 45)) {
+            String crateId = entry.getKey();
+            inventory.setItem(slot++, new ItemBuilder(crateMaterial(crateId))
+                .name(crateDisplayName(crateId))
+                .lore(List.of(
+                    "&7Technical: &f" + crateId,
+                    "&7Opens by player: &f" + entry.getValue(),
+                    crateManager.getCrate(crateId).isPresent() ? "&8" : "&cCrate is not currently configured."
+                ))
+                .build());
+        }
+        if (crates.isEmpty()) {
+            inventory.setItem(22, new ItemBuilder(Material.BARRIER).name("&cNo Opens").lore(List.of(
+                "&7No stored crate opens for &f" + name + "&7.")).build());
+        }
+        addPageButtons(inventory, page, crates.size(), 45);
+        inventory.setItem(48, new ItemBuilder(Material.PAPER).name("&fTotal Opens").lore(List.of(
+            "&7Player: &f" + name,
+            "&7Total: &f" + playerDataService.getTotalOpenCount(uuid)
+        )).build());
+        inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        fillEmpty(inventory);
+        openMenu(player, inventory);
+    }
+
+    private void openStatsCrateSelect(Player player) {
+        openStatsCrateSelect(player, 0);
+    }
+
+    private void openStatsCrateSelect(Player player, int requestedPage) {
+        List<String> crateIds = knownCrateIds();
+        int page = boundedPage(requestedPage, crateIds.size(), 45);
+        MenuHolder holder = new MenuHolder(MenuType.STATS_CRATE_SELECT, null, null, page);
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Select Crate Stats"));
+        holder.setInventory(inventory);
+
+        Map<String, Integer> totals = playerDataService.getCrateTotals();
+        int slot = 0;
+        for (String crateId : pageItems(crateIds, page, 45)) {
+            inventory.setItem(slot++, tag(new ItemBuilder(crateMaterial(crateId))
+                .name(crateDisplayName(crateId))
+                .lore(List.of(
+                    "&7Technical: &f" + crateId,
+                    "&7Total opens: &f" + totals.getOrDefault(crateId.toLowerCase(java.util.Locale.ROOT), 0),
+                    "&eClick to inspect players."
+                ))
+                .build(), crateTag, crateId));
+        }
+        if (crateIds.isEmpty()) {
+            inventory.setItem(22, new ItemBuilder(Material.BARRIER).name("&cNo Crates").build());
+        }
+        addPageButtons(inventory, page, crateIds.size(), 45);
+        inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        fillEmpty(inventory);
+        openMenu(player, inventory);
+    }
+
+    private void openStatsCrateDetail(Player player, String crateId) {
+        openStatsCrateDetail(player, crateId, 0);
+    }
+
+    private void openStatsCrateDetail(Player player, String crateId, int requestedPage) {
+        List<Map.Entry<UUID, Integer>> players = new ArrayList<>(playerDataService.getPlayersForCrate(crateId).entrySet());
+        int page = boundedPage(requestedPage, players.size(), 45);
+        MenuHolder holder = new MenuHolder(MenuType.STATS_CRATE_DETAIL, crateId, null, page);
+        Inventory inventory = Bukkit.createInventory(holder, 54,
+            ColorUtil.component("&5Openers: " + ColorUtil.removeColor(crateDisplayName(crateId))));
+        holder.setInventory(inventory);
+
+        int slot = 0;
+        for (Map.Entry<UUID, Integer> entry : pageItems(players, page, 45)) {
+            UUID uuid = entry.getKey();
+            String name = playerDataService.getKnownPlayerName(uuid);
+            inventory.setItem(slot++, tag(playerHead(uuid, name, List.of(
+                "&7Crate: &f" + crateId,
+                "&7Opens: &f" + entry.getValue(),
+                "&eClick to inspect this player."
+            )), playerTag, uuid.toString()));
+        }
+        if (players.isEmpty()) {
+            inventory.setItem(22, new ItemBuilder(Material.BARRIER).name("&cNo Opens").lore(List.of(
+                "&7No players have opened this crate yet.")).build());
+        }
+        addPageButtons(inventory, page, players.size(), 45);
+        inventory.setItem(48, new ItemBuilder(Material.PAPER).name("&fCrate Total").lore(List.of(
+            "&7Crate: &f" + crateId,
+            "&7Total opens: &f" + playerDataService.getCrateTotals().getOrDefault(crateId.toLowerCase(java.util.Locale.ROOT), 0)
+        )).build());
+        inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        fillEmpty(inventory);
+        openMenu(player, inventory);
+    }
+
+    private void openStatsPopularCrates(Player player) {
+        openStatsPopularCrates(player, 0);
+    }
+
+    private void openStatsPopularCrates(Player player, int requestedPage) {
+        List<Map.Entry<String, Integer>> crates = new ArrayList<>(playerDataService.getCrateTotals().entrySet());
+        int page = boundedPage(requestedPage, crates.size(), 45);
+        MenuHolder holder = new MenuHolder(MenuType.STATS_POPULAR_CRATES, null, null, page);
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Popular Crates"));
+        holder.setInventory(inventory);
+
+        int slot = 0;
+        int rank = page * 45 + 1;
+        for (Map.Entry<String, Integer> entry : pageItems(crates, page, 45)) {
+            String crateId = entry.getKey();
+            inventory.setItem(slot++, tag(new ItemBuilder(crateMaterial(crateId))
+                .name("&6#" + rank++ + " &r" + ColorUtil.removeColor(crateDisplayName(crateId)))
+                .lore(List.of(
+                    "&7Technical: &f" + crateId,
+                    "&7Total opens: &f" + entry.getValue(),
+                    "&eClick to inspect players."
+                ))
+                .build(), crateTag, crateId));
+        }
+        if (crates.isEmpty()) {
+            inventory.setItem(22, new ItemBuilder(Material.BARRIER).name("&cNo Opens").build());
+        }
+        addPageButtons(inventory, page, crates.size(), 45);
+        inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
+        fillEmpty(inventory);
+        openMenu(player, inventory);
+    }
+
+    private void openStatsPlayerTotals(Player player) {
+        openStatsPlayerTotals(player, 0);
+    }
+
+    private void openStatsPlayerTotals(Player player, int requestedPage) {
+        List<Map.Entry<UUID, Integer>> players = new ArrayList<>(playerDataService.getPlayerTotals().entrySet());
+        int page = boundedPage(requestedPage, players.size(), 45);
+        MenuHolder holder = new MenuHolder(MenuType.STATS_PLAYER_TOTALS, null, null, page);
+        Inventory inventory = Bukkit.createInventory(holder, 54, ColorUtil.component("&5Player Totals"));
+        holder.setInventory(inventory);
+
+        int slot = 0;
+        int rank = page * 45 + 1;
+        for (Map.Entry<UUID, Integer> entry : pageItems(players, page, 45)) {
+            UUID uuid = entry.getKey();
+            String name = playerDataService.getKnownPlayerName(uuid);
+            inventory.setItem(slot++, tag(playerHead(uuid, "&a#" + rank++ + " &f" + name, List.of(
+                "&7Total opens: &f" + entry.getValue(),
+                "&eClick to inspect player."
+            )), playerTag, uuid.toString()));
+        }
+        if (players.isEmpty()) {
+            inventory.setItem(22, new ItemBuilder(Material.BARRIER).name("&cNo Player Stats").build());
+        }
+        addPageButtons(inventory, page, players.size(), 45);
+        inventory.setItem(47, new ItemBuilder(Material.NAME_TAG).name("&bInsert Nickname").lore(List.of(
+            "&7Type a player name in chat.")).build());
         inventory.setItem(49, new ItemBuilder(Material.ARROW).name("&eBack").build());
         fillEmpty(inventory);
         openMenu(player, inventory);
@@ -401,6 +661,14 @@ public class GuiManager implements Listener {
             case GIVE_KEY_TYPE -> handleGiveKeyType(player, event.getRawSlot());
             case GIVE_KEY_CRATE -> handleGiveKeyCrate(player, holder, event);
             case GIVE_KEY_PLAYER -> handleGiveKeyPlayer(player, holder, event);
+            case ADMIN_TOOLS -> handleAdminTools(player, event.getRawSlot());
+            case STATS_MENU -> handleStatsMenu(player, event.getRawSlot());
+            case STATS_PLAYER_SELECT -> handleStatsPlayerSelect(player, holder, event);
+            case STATS_PLAYER_DETAIL -> handleStatsPlayerDetail(player, holder, event.getRawSlot());
+            case STATS_CRATE_SELECT -> handleStatsCrateSelect(player, holder, event);
+            case STATS_CRATE_DETAIL -> handleStatsCrateDetail(player, holder, event);
+            case STATS_POPULAR_CRATES -> handleStatsPopularCrates(player, holder, event);
+            case STATS_PLAYER_TOTALS -> handleStatsPlayerTotals(player, holder, event);
             case PREVIEW -> handlePreview(player, holder, event.getRawSlot());
             case OPENING, CHOOSE_OPEN, REWARD_ITEMS -> { }
         }
@@ -495,6 +763,7 @@ public class GuiManager implements Listener {
             }
             case 12 -> openManage(player);
             case 14 -> openGiveKeyType(player);
+            case 16 -> openAdminTools(player);
             case 22 -> {
                 plugin.reloadConfig();
                 messageService.reload();
@@ -505,6 +774,114 @@ public class GuiManager implements Listener {
                 messageService.send(player, "reloaded");
                 openMain(player);
             }
+            default -> {
+            }
+        }
+    }
+
+    private void handleAdminTools(Player player, int slot) {
+        switch (slot) {
+            case 10 -> requestChat(player, prompt("reset-cooldowns"), input -> {
+                String[] values = splitInput(input);
+                if (values.length < 1) {
+                    messageService.send(player, "admin-tool-invalid");
+                    openAdminTools(player);
+                    return;
+                }
+                org.bukkit.OfflinePlayer target = Bukkit.getOfflinePlayer(values[0]);
+                String crate = values.length >= 2 ? values[1] : "all";
+                playerDataService.resetCooldowns(target.getUniqueId(), crate);
+                messageService.send(player, "player-cooldowns-reset",
+                    Map.of("%player%", playerName(target, values[0]), "%crate%", crate));
+                openAdminTools(player);
+            });
+            case 11 -> requestChat(player, prompt("reset-stats"), input -> {
+                String[] values = splitInput(input);
+                if (values.length < 1) {
+                    messageService.send(player, "admin-tool-invalid");
+                    openAdminTools(player);
+                    return;
+                }
+                org.bukkit.OfflinePlayer target = Bukkit.getOfflinePlayer(values[0]);
+                String crate = values.length >= 2 ? values[1] : "all";
+                playerDataService.resetStats(target.getUniqueId(), crate);
+                messageService.send(player, "player-stats-reset",
+                    Map.of("%player%", playerName(target, values[0]), "%crate%", crate));
+                openAdminTools(player);
+            });
+            case 12 -> requestChat(player, prompt("reset-player-limits"), input -> {
+                String[] values = splitInput(input);
+                if (values.length < 1) {
+                    messageService.send(player, "admin-tool-invalid");
+                    openAdminTools(player);
+                    return;
+                }
+                org.bukkit.OfflinePlayer target = Bukkit.getOfflinePlayer(values[0]);
+                String crate = values.length >= 2 ? values[1] : "all";
+                String reward = values.length >= 3 ? values[2] : "all";
+                playerDataService.resetPlayerRewardLimits(target.getUniqueId(), crate, reward);
+                messageService.send(player, "player-limits-reset",
+                    Map.of("%player%", playerName(target, values[0]), "%crate%", crate, "%reward%", reward));
+                openAdminTools(player);
+            });
+            case 13 -> requestChat(player, prompt("reset-global-limits"), input -> {
+                String[] values = splitInput(input);
+                String crate = values.length >= 1 ? values[0] : "all";
+                String reward = values.length >= 2 ? values[1] : "all";
+                playerDataService.resetGlobalRewardLimits(crate, reward);
+                messageService.send(player, "global-limits-reset", Map.of("%crate%", crate, "%reward%", reward));
+                openAdminTools(player);
+            });
+            case 14 -> requestChat(player, prompt("duplicate-crate"), input -> {
+                String[] values = splitInput(input);
+                if (values.length < 2) {
+                    messageService.send(player, "admin-tool-invalid");
+                    openAdminTools(player);
+                    return;
+                }
+                crateManager.duplicateCrate(values[0], values[1]).ifPresentOrElse(crate ->
+                    messageService.send(player, "crate-duplicated",
+                        Map.of("%crate%", values[0], "%new%", crate.getId())),
+                    () -> messageService.send(player, "crate-duplicate-failed"));
+                openAdminTools(player);
+            });
+            case 15 -> requestChat(player, prompt("export-template"), input -> {
+                String[] values = splitInput(input);
+                if (values.length < 1) {
+                    messageService.send(player, "admin-tool-invalid");
+                    openAdminTools(player);
+                    return;
+                }
+                String fileName = values.length >= 2 ? values[1] : values[0];
+                File file = templateFile(fileName);
+                if (crateManager.exportTemplate(values[0], file)) {
+                    messageService.send(player, "template-exported",
+                        Map.of("%crate%", values[0], "%file%", file.getName()));
+                } else {
+                    messageService.send(player, "template-export-failed", Map.of("%crate%", values[0]));
+                }
+                openAdminTools(player);
+            });
+            case 16 -> requestChat(player, prompt("import-template"), input -> {
+                String[] values = splitInput(input);
+                if (values.length < 1) {
+                    messageService.send(player, "admin-tool-invalid");
+                    openAdminTools(player);
+                    return;
+                }
+                File file = templateFile(values[0]);
+                String newName = values.length >= 2 ? values[1] : null;
+                crateManager.importTemplate(file, newName).ifPresentOrElse(crate -> {
+                    messageService.send(player, "template-imported",
+                        Map.of("%crate%", crate.getId(), "%file%", file.getName()));
+                    openEdit(player, crate);
+                }, () -> {
+                    messageService.send(player, "template-import-failed", Map.of("%file%", file.getName()));
+                    openAdminTools(player);
+                });
+            });
+            case 20 -> openStatsMenu(player);
+            case 22 -> openMain(player);
             default -> {
             }
         }
@@ -562,25 +939,178 @@ public class GuiManager implements Listener {
                 .ifPresent(crate -> openGiveKeyCrates(player, holder.getRewardId()));
             return;
         }
+        if (event.getRawSlot() == 47) {
+            Crate crate = crateManager.getCrate(holder.getCrateId()).orElse(null);
+            if (crate == null) {
+                return;
+            }
+            requestChat(player, prompt("give-key-player"), input -> {
+                String targetName = input == null ? "" : input.trim();
+                if (targetName.isBlank()) {
+                    messageService.send(player, "admin-tool-invalid");
+                    openGiveKeyPlayers(player, crate, holder.getRewardId());
+                    return;
+                }
+                OfflinePlayer target;
+                if ("physical".equalsIgnoreCase(holder.getRewardId())) {
+                    Player onlineTarget = Bukkit.getPlayerExact(targetName);
+                    if (onlineTarget == null) {
+                        messageService.send(player, "physical-key-target-offline",
+                            Map.of("%player%", targetName));
+                        openGiveKeyPlayers(player, crate, holder.getRewardId());
+                        return;
+                    }
+                    target = onlineTarget;
+                } else {
+                    target = Bukkit.getOfflinePlayer(targetName);
+                }
+                requestGiveKeyAmount(player, crate, holder.getRewardId(), target,
+                    () -> openGiveKeyPlayers(player, crate, holder.getRewardId()));
+            });
+            return;
+        }
         String targetName = readTag(event.getCurrentItem(), playerTag).orElse(null);
         Player target = targetName == null ? null : Bukkit.getPlayerExact(targetName);
         Crate crate = crateManager.getCrate(holder.getCrateId()).orElse(null);
         if (target == null || crate == null) {
             return;
         }
-        requestChat(player, "&eEnter the number of keys to give:", input -> {
-            int amount = Math.max(1, parsePositiveInt(input, 1));
-            if ("virtual".equalsIgnoreCase(holder.getRewardId())) {
-                keyManager.addVirtualKeys(target, crate.getId(), amount);
-                messageService.send(player, "virtual-keys-added", Map.of(
-                    "%player%", target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
-            } else {
-                givePhysicalKeys(target, crate, amount);
-                messageService.send(player, "key-given", Map.of(
-                    "%player%", target.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+        requestGiveKeyAmount(player, crate, holder.getRewardId(), target,
+            () -> openGiveKeyPlayers(player, crate, holder.getRewardId()));
+    }
+
+    private void handleStatsMenu(Player player, int slot) {
+        switch (slot) {
+            case 10 -> openStatsPlayerSelect(player);
+            case 12 -> openStatsCrateSelect(player);
+            case 14 -> openStatsPopularCrates(player);
+            case 16 -> openStatsPlayerTotals(player);
+            case 22 -> openAdminTools(player);
+            default -> {
             }
-            openMain(player);
-        });
+        }
+    }
+
+    private void handleStatsPlayerSelect(Player player, MenuHolder holder, InventoryClickEvent event) {
+        int slot = event.getRawSlot();
+        if (slot == 45 && holder.getPage() > 0) {
+            openStatsPlayerSelect(player, holder.getPage() - 1);
+            return;
+        }
+        if (slot == 53) {
+            openStatsPlayerSelect(player, holder.getPage() + 1);
+            return;
+        }
+        if (slot == 47) {
+            requestStatsPlayerNickname(player);
+            return;
+        }
+        if (slot == 49) {
+            openStatsMenu(player);
+            return;
+        }
+
+        readUuidTag(event.getCurrentItem())
+            .ifPresent(uuid -> openStatsPlayerDetail(player, uuid));
+    }
+
+    private void handleStatsPlayerDetail(Player player, MenuHolder holder, int slot) {
+        Optional<UUID> uuid = parseUuid(holder.getCrateId());
+        if (uuid.isEmpty()) {
+            openStatsPlayerSelect(player);
+            return;
+        }
+        if (slot == 45 && holder.getPage() > 0) {
+            openStatsPlayerDetail(player, uuid.get(), holder.getPage() - 1);
+            return;
+        }
+        if (slot == 53) {
+            openStatsPlayerDetail(player, uuid.get(), holder.getPage() + 1);
+            return;
+        }
+        if (slot == 49) {
+            openStatsPlayerSelect(player);
+        }
+    }
+
+    private void handleStatsCrateSelect(Player player, MenuHolder holder, InventoryClickEvent event) {
+        int slot = event.getRawSlot();
+        if (slot == 45 && holder.getPage() > 0) {
+            openStatsCrateSelect(player, holder.getPage() - 1);
+            return;
+        }
+        if (slot == 53) {
+            openStatsCrateSelect(player, holder.getPage() + 1);
+            return;
+        }
+        if (slot == 49) {
+            openStatsMenu(player);
+            return;
+        }
+
+        readTag(event.getCurrentItem(), crateTag)
+            .ifPresent(crateId -> openStatsCrateDetail(player, crateId));
+    }
+
+    private void handleStatsCrateDetail(Player player, MenuHolder holder, InventoryClickEvent event) {
+        int slot = event.getRawSlot();
+        if (slot == 45 && holder.getPage() > 0) {
+            openStatsCrateDetail(player, holder.getCrateId(), holder.getPage() - 1);
+            return;
+        }
+        if (slot == 53) {
+            openStatsCrateDetail(player, holder.getCrateId(), holder.getPage() + 1);
+            return;
+        }
+        if (slot == 49) {
+            openStatsCrateSelect(player);
+            return;
+        }
+
+        readUuidTag(event.getCurrentItem())
+            .ifPresent(uuid -> openStatsPlayerDetail(player, uuid));
+    }
+
+    private void handleStatsPopularCrates(Player player, MenuHolder holder, InventoryClickEvent event) {
+        int slot = event.getRawSlot();
+        if (slot == 45 && holder.getPage() > 0) {
+            openStatsPopularCrates(player, holder.getPage() - 1);
+            return;
+        }
+        if (slot == 53) {
+            openStatsPopularCrates(player, holder.getPage() + 1);
+            return;
+        }
+        if (slot == 49) {
+            openStatsMenu(player);
+            return;
+        }
+
+        readTag(event.getCurrentItem(), crateTag)
+            .ifPresent(crateId -> openStatsCrateDetail(player, crateId));
+    }
+
+    private void handleStatsPlayerTotals(Player player, MenuHolder holder, InventoryClickEvent event) {
+        int slot = event.getRawSlot();
+        if (slot == 45 && holder.getPage() > 0) {
+            openStatsPlayerTotals(player, holder.getPage() - 1);
+            return;
+        }
+        if (slot == 53) {
+            openStatsPlayerTotals(player, holder.getPage() + 1);
+            return;
+        }
+        if (slot == 47) {
+            requestStatsPlayerNickname(player);
+            return;
+        }
+        if (slot == 49) {
+            openStatsMenu(player);
+            return;
+        }
+
+        readUuidTag(event.getCurrentItem())
+            .ifPresent(uuid -> openStatsPlayerDetail(player, uuid));
     }
 
     private void handleRewardItemsClick(Player player, MenuHolder holder, InventoryClickEvent event) {
@@ -665,12 +1195,12 @@ public class GuiManager implements Listener {
         int slot = event.getRawSlot();
 
         switch (slot) {
-            case 10 -> requestChat(player, "&eEnter the new display name:", input -> {
+            case 10 -> requestChat(player, prompt("display-name"), input -> {
                 crate.setDisplayName(input);
                 saveAndRefreshHolograms();
                 openEdit(player, crate);
             });
-            case SLOT_CRATE_REAL_NAME -> requestChat(player, "&eEnter the new real crate name:", input -> renameCrate(player, crate, input));
+            case SLOT_CRATE_REAL_NAME -> requestChat(player, prompt("real-crate-name"), input -> renameCrate(player, crate, input));
             case SLOT_CRATE_COLOR -> {
                 cycleCrateColor(crate);
                 saveAndRefreshHolograms();
@@ -688,7 +1218,7 @@ public class GuiManager implements Listener {
                 ItemStack sourceItem = selectedItem(player, event, true);
                 setCrateBlockFromItem(player, crate, sourceItem);
             }
-            case 14 -> requestChat(player, "&eEnter hologram lines separated with |:", input -> {
+            case 14 -> requestChat(player, prompt("hologram"), input -> {
                 crate.setHologram(List.of(input.split("\\|")));
                 saveAndRefreshHolograms();
                 openEdit(player, crate);
@@ -700,7 +1230,7 @@ public class GuiManager implements Listener {
                     .forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
                 messageService.send(player, "key-given", Map.of("%player%", player.getName(), "%crate%", crate.getId(), "%amount%", "1"));
             }
-            case 30 -> requestChat(player, "&eEnter the no-key message:", input -> {
+            case 30 -> requestChat(player, prompt("no-key-message"), input -> {
                 crate.setNoKeyMessage(input);
                 crateManager.save();
                 openEdit(player, crate);
@@ -726,17 +1256,17 @@ public class GuiManager implements Listener {
                 saveAndRefreshHolograms();
                 openEdit(player, crate);
             }
-            case 21 -> requestChat(player, "&eEnter permission or 'none':", input -> {
+            case 21 -> requestChat(player, prompt("permission"), input -> {
                 crate.setPermission(input.equalsIgnoreCase("none") ? "" : input);
                 crateManager.save();
                 openEdit(player, crate);
             });
-            case 23 -> requestChat(player, "&eEnter cooldown in seconds (0 disables):", input -> {
+            case 23 -> requestChat(player, prompt("cooldown"), input -> {
                 crate.setCooldownSeconds(parsePositiveLong(input, 0L));
                 crateManager.save();
                 openEdit(player, crate);
             });
-            case 24 -> requestChat(player, "&eEnter Vault open cost (0 disables):", input -> {
+            case 24 -> requestChat(player, prompt("open-cost"), input -> {
                 crate.setOpenCost(parseDouble(input, crate.getOpenCost()));
                 crateManager.save();
                 openEdit(player, crate);
@@ -746,27 +1276,27 @@ public class GuiManager implements Listener {
                 crateManager.save();
                 openEdit(player, crate);
             }
-            case 26 -> requestChat(player, "&eEnter requirements: crate:amount,crate2:amount", input -> {
+            case 26 -> requestChat(player, prompt("key-requirements"), input -> {
                 crate.setKeyRequirements(parseKeyRequirements(input));
                 crateManager.save();
                 openEdit(player, crate);
             });
-            case 29 -> requestChat(player, "&eEnter preview title:", input -> {
+            case 29 -> requestChat(player, prompt("preview-title"), input -> {
                 crate.setPreviewTitle(input);
                 crateManager.save();
                 openEdit(player, crate);
             });
-            case 31 -> requestChat(player, "&eEnter opening GUI title:", input -> {
+            case 31 -> requestChat(player, prompt("opening-title"), input -> {
                 crate.setOpeningTitle(input);
                 crateManager.save();
                 openEdit(player, crate);
             });
-            case 33 -> requestChat(player, "&eEnter milestones: amount:rewardId,amount:rewardId", input -> {
+            case 33 -> requestChat(player, prompt("milestones"), input -> {
                 crate.setMilestones(parseMilestones(input));
                 crateManager.save();
                 openEdit(player, crate);
             });
-            case 35 -> requestChat(player, "&eHow many different rewards per open? (1-9):", input -> {
+            case 35 -> requestChat(player, prompt("reward-rolls"), input -> {
                 crate.setRewardRolls(Math.max(1, Math.min(9, parsePositiveInt(input, crate.getRewardRolls()))));
                 crateManager.save();
                 openEdit(player, crate);
@@ -868,44 +1398,44 @@ public class GuiManager implements Listener {
         Reward reward = optionalReward.get();
 
         switch (event.getRawSlot()) {
-            case SLOT_REWARD_NAME -> requestChat(player, "&eEnter the item name shown in the crate:", input -> {
+            case SLOT_REWARD_NAME -> requestChat(player, prompt("reward-name"), input -> {
                 setRewardDisplayName(reward, input);
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
             case SLOT_REWARD_DISPLAY_ITEM -> setRewardDisplayItem(player, crate, reward, selectedItem(player, event, true));
             case SLOT_REWARD_DROP_ITEM -> setRewardDropItem(player, crate, reward, selectedItem(player, event, false));
-            case SLOT_REWARD_REAL_CHANCE -> requestChat(player, "&eEnter real chance, e.g. 5:", input -> {
+            case SLOT_REWARD_REAL_CHANCE -> requestChat(player, prompt("real-chance"), input -> {
                 reward.setRealChance(parseDouble(input, reward.getRealChance()));
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
-            case SLOT_REWARD_DISPLAY_CHANCE -> requestChat(player, "&eEnter display chance, e.g. 10:", input -> {
+            case SLOT_REWARD_DISPLAY_CHANCE -> requestChat(player, prompt("display-chance"), input -> {
                 reward.setDisplayChance(parseDouble(input, reward.getDisplayChance()));
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
-            case 18 -> requestChat(player, "&eEnter rarity name:", input -> {
+            case 18 -> requestChat(player, prompt("rarity"), input -> {
                 reward.setRarity(input);
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
-            case 20 -> requestChat(player, "&eEnter reward weight:", input -> {
+            case 20 -> requestChat(player, prompt("weight"), input -> {
                 reward.setWeight(parseDouble(input, reward.getWeight()));
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
-            case 24 -> requestChat(player, "&eEnter commands separated with | (or none):", input -> {
+            case 24 -> requestChat(player, prompt("commands"), input -> {
                 reward.setCommands(parseList(input, "\\|"));
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
-            case 26 -> requestChat(player, "&eEnter required permissions separated with commas (or none):", input -> {
+            case 26 -> requestChat(player, prompt("required-permissions"), input -> {
                 reward.setRequiredPermissions(parseList(input, ","));
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             });
-            case 28 -> requestChat(player, "&eEnter blocked permissions separated with commas (or none):", input -> {
+            case 28 -> requestChat(player, prompt("blocked-permissions"), input -> {
                 reward.setBlockedPermissions(parseList(input, ","));
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
@@ -920,7 +1450,7 @@ public class GuiManager implements Listener {
                 crateManager.save();
                 openRewardEdit(player, crate, reward);
             }
-            case 34 -> requestChat(player, "&eEnter limits as global,player (0 disables):", input -> {
+            case 34 -> requestChat(player, prompt("reward-limits"), input -> {
                 String[] values = input.split(",", 2);
                 reward.setGlobalLimit(parsePositiveInt(values[0], reward.getGlobalLimit()));
                 if (values.length > 1) {
@@ -1219,6 +1749,95 @@ public class GuiManager implements Listener {
         }
     }
 
+    private void requestGiveKeyAmount(Player player, Crate crate, String mode, OfflinePlayer target, Runnable cancelCallback) {
+        if (player.getOpenInventory().getTopInventory().getHolder() instanceof MenuHolder) {
+            suppressNextClose(player);
+        }
+        chatInputManager.request(player, prompt("give-key-amount"), input -> {
+            int amount = Math.max(1, parsePositiveInt(input, 1));
+            String targetName = playerName(target, target.getUniqueId().toString());
+            if ("virtual".equalsIgnoreCase(mode)) {
+                keyManager.addVirtualKeys(target, crate.getId(), amount);
+                messageService.send(player, "virtual-keys-added", Map.of(
+                    "%player%", targetName, "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+            } else {
+                Player onlineTarget = target.getPlayer();
+                if (onlineTarget == null) {
+                    messageService.send(player, "physical-key-target-offline", Map.of("%player%", targetName));
+                    cancelCallback.run();
+                    return;
+                }
+                givePhysicalKeys(onlineTarget, crate, amount);
+                messageService.send(player, "key-given", Map.of(
+                    "%player%", onlineTarget.getName(), "%crate%", crate.getId(), "%amount%", String.valueOf(amount)));
+            }
+            openMain(player);
+        }, cancelCallback);
+    }
+
+    private void requestStatsPlayerNickname(Player player) {
+        requestChat(player, prompt("stats-player-nickname"), input -> {
+            String targetName = input == null ? "" : input.trim();
+            Optional<UUID> uuid = playerDataService.findKnownPlayerUuid(targetName);
+            if (uuid.isEmpty()) {
+                messageService.send(player, "player-stats-missing", Map.of("%player%", targetName));
+                openStatsPlayerSelect(player);
+                return;
+            }
+            openStatsPlayerDetail(player, uuid.get());
+        });
+    }
+
+    private ItemStack playerHead(UUID uuid, String displayName, List<String> lore) {
+        String safeName = displayName == null || displayName.isBlank() ? uuid.toString() : displayName;
+        String coloredName = safeName.startsWith("&") ? safeName : "&f" + safeName;
+        ItemStack itemStack = new ItemBuilder(Material.PLAYER_HEAD).name(coloredName).lore(lore).build();
+        ItemMeta meta = itemStack.getItemMeta();
+        if (meta instanceof SkullMeta skullMeta) {
+            skullMeta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
+            itemStack.setItemMeta(skullMeta);
+        }
+        return itemStack;
+    }
+
+    private Optional<UUID> readUuidTag(ItemStack itemStack) {
+        return readTag(itemStack, playerTag).flatMap(this::parseUuid);
+    }
+
+    private Optional<UUID> parseUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(UUID.fromString(value));
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private Material crateMaterial(String crateId) {
+        return crateManager.getCrate(crateId)
+            .map(Crate::getBlockMaterial)
+            .orElse(Material.CHEST);
+    }
+
+    private String crateDisplayName(String crateId) {
+        return crateManager.getCrate(crateId)
+            .map(Crate::getDisplayName)
+            .orElse("&f" + crateId);
+    }
+
+    private List<String> knownCrateIds() {
+        Map<String, String> crateIds = new LinkedHashMap<>();
+        for (Crate crate : crateManager.getCrates()) {
+            crateIds.put(crate.getId().toLowerCase(java.util.Locale.ROOT), crate.getId());
+        }
+        for (String crateId : playerDataService.getCrateTotals().keySet()) {
+            crateIds.putIfAbsent(crateId.toLowerCase(java.util.Locale.ROOT), crateId);
+        }
+        return new ArrayList<>(crateIds.values());
+    }
+
     private Material nextBlock(Material current) {
         int index = blockCycle.indexOf(current);
         if (index < 0) {
@@ -1251,6 +1870,11 @@ public class GuiManager implements Listener {
     private void saveAndRefreshHolograms() {
         crateManager.save();
         crateLocationManager.refreshHolograms();
+    }
+
+    private String prompt(String key) {
+        String prompt = messageService.get("prompts." + key);
+        return prompt.startsWith("<no-prefix>") ? prompt.substring("<no-prefix>".length()) : prompt;
     }
 
     private void requestChat(Player player, String prompt, java.util.function.Consumer<String> callback) {
@@ -1286,6 +1910,11 @@ public class GuiManager implements Listener {
             case GIVE_KEY_TYPE -> openMain(player);
             case GIVE_KEY_CRATE -> openGiveKeyType(player);
             case GIVE_KEY_PLAYER -> openGiveKeyCrates(player, holder.getRewardId());
+            case ADMIN_TOOLS -> openMain(player);
+            case STATS_MENU -> openAdminTools(player);
+            case STATS_PLAYER_SELECT, STATS_CRATE_SELECT, STATS_POPULAR_CRATES, STATS_PLAYER_TOTALS -> openStatsMenu(player);
+            case STATS_PLAYER_DETAIL -> openStatsPlayerSelect(player);
+            case STATS_CRATE_DETAIL -> openStatsCrateSelect(player);
             default -> {
             }
         }
@@ -1311,6 +1940,15 @@ public class GuiManager implements Listener {
             case GIVE_KEY_CRATE -> openGiveKeyCrates(player, holder.getCrateId(), holder.getPage());
             case GIVE_KEY_PLAYER -> crateManager.getCrate(holder.getCrateId()).ifPresent(crate ->
                 openGiveKeyPlayers(player, crate, holder.getRewardId()));
+            case ADMIN_TOOLS -> openAdminTools(player);
+            case STATS_MENU -> openStatsMenu(player);
+            case STATS_PLAYER_SELECT -> openStatsPlayerSelect(player, holder.getPage());
+            case STATS_PLAYER_DETAIL -> parseUuid(holder.getCrateId()).ifPresent(uuid ->
+                openStatsPlayerDetail(player, uuid, holder.getPage()));
+            case STATS_CRATE_SELECT -> openStatsCrateSelect(player, holder.getPage());
+            case STATS_CRATE_DETAIL -> openStatsCrateDetail(player, holder.getCrateId(), holder.getPage());
+            case STATS_POPULAR_CRATES -> openStatsPopularCrates(player, holder.getPage());
+            case STATS_PLAYER_TOTALS -> openStatsPlayerTotals(player, holder.getPage());
             case OPENING, CHOOSE_OPEN -> { }
         }
     }
@@ -1333,6 +1971,27 @@ public class GuiManager implements Listener {
 
     private boolean isUsableItem(ItemStack itemStack) {
         return itemStack != null && itemStack.getType() != Material.AIR;
+    }
+
+    private String[] splitInput(String input) {
+        if (input == null || input.isBlank()) {
+            return new String[0];
+        }
+        return java.util.Arrays.stream(input.trim().split("\\s+"))
+            .filter(value -> !value.isBlank())
+            .toArray(String[]::new);
+    }
+
+    private File templateFile(String name) {
+        String safeName = name == null || name.isBlank() ? "crate" : name.trim().replaceAll("[^A-Za-z0-9._-]", "_");
+        if (!safeName.endsWith(".yml") && !safeName.endsWith(".yaml")) {
+            safeName += ".yml";
+        }
+        return new File(new File(plugin.getDataFolder(), "templates"), safeName);
+    }
+
+    private String playerName(org.bukkit.OfflinePlayer player, String fallback) {
+        return player.getName() == null ? fallback : player.getName();
     }
 
     private ItemStack filler() {

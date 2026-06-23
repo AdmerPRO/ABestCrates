@@ -2,26 +2,52 @@
 
 All notable changes to the ABestCrates project are documented in this file.
 
+## [1.2.2] - 2026-06-23
+
+### Added
+
+- Added config/version markers to generated configuration files.
+- Added bStats integration wiring with configurable plugin ID.
+- Added admin reset commands and GUI tools for cooldowns, player stats, and reward limit counters.
+- Added crate duplication plus import/export template commands and GUI tools.
+- Added an Admin Tools statistics GUI for player crate history, crate opener lists, player totals, and most-opened crates.
+- Added an Insert Nickname option to player stat lookup and the Give Keys GUI.
+- Added more unit coverage around crate IDs, clamped settings, reward item bundles, and zero-chance rolls.
+
+### Changed
+
+- Replaced the old unused `OpeningService` implementation with a small runtime contract used by `AdvancedOpeningService`.
+- Moved chat prompts, command help, protected-crate, and admin/template messages into `messages.yml`.
+- Player open data now stores last-known player names for easier offline stat lookup.
+- Renamed `ModrithReadme.md` to `ModrinthReadme.md`.
+- Bumped the 1.20.x branch plugin version to `1.2.2`.
+
+### Verification
+
+- Built the project using the local Maven toolchain.
+- Verified `14` unit tests pass.
+
 ## [1.2.1] - 2026-06-23
 
 ### Fixed
 
 - Fixed reward rolling so rewards with `0.0` real/effective chance are not selected at the exact random boundary.
 - Refreshed owner-only virtual key displays after virtual key balances are migrated during crate renames.
-- Removed empty virtual-key entries after the last key is consumed or removed.
-- Cleared stale Vault economy hooks before reconnecting when Vault is unavailable or incompatible.
-- Guarded PlaceholderAPI expansion requests against empty or null placeholder parameters.
+- Removed empty virtual-key entries after the last key is consumed, removed, or loaded from disk.
+- Avoided unnecessary virtual-key saves when crate rename/removal does not change stored balances.
+- Cleared stale Vault economy hooks when Vault is unavailable, disabled, or incompatible.
+- Guarded PlaceholderAPI expansion requests against empty placeholder parameters.
 - Guarded virtual key display refreshes against teleport events without a destination.
 - Made reward lookup/removal null-safe and normalized blank reward IDs to a safe fallback.
-- Updated stale README/Modrinth README version and compatibility references.
+- Updated stale README/Modrinth README version and permission references.
 
 ### Changed
 
-- Bumped the plugin version to `1.2.1`.
+- Bumped the 1.21.x branch plugin version to `1.2.1`.
 
 ### Tests
 
-- Added a regression test for zero-chance reward selection at the random boundary.
+- Added regression coverage for zero-chance reward selection and null/blank reward IDs.
 
 ## [1.2.0] - 2026-06-22
 
@@ -106,7 +132,7 @@ All notable changes to the ABestCrates project are documented in this file.
 
 ### Documentation
 
-- Expanded `README.md` and `ModrithReadme.md` with the new features, integrations, commands, placeholders, and data files.
+- Expanded `README.md` and `ModrinthReadme.md` with the new features, integrations, commands, placeholders, and data files.
 - Bumped the project and output JAR version from `1.0.0` to `1.1.0`.
 
 ### Verification

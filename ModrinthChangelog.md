@@ -1,20 +1,25 @@
-# ABestCrates 1.2.1
+# ABestCrates 1.2.2
 
-Version 1.2.1 is a stability release focused on routine bug fixes and safer edge-case handling.
+Version 1.2.2 adds admin maintenance tools, crate templates, config versioning, statistics GUI improvements, and release polish for the Paper 1.20.x branch.
 
-## Fixed
+## Added
 
-- Rewards with `0.0` real or effective chance can no longer be selected when the random roll lands exactly on the lower boundary.
-- Virtual key displays now refresh after crate renames migrate stored virtual key balances.
-- Empty virtual-key entries are removed after the last key is consumed or removed.
-- Vault economy reconnects now clear stale hooks before checking for an available provider.
-- PlaceholderAPI expansion requests safely ignore empty or null placeholder parameters.
-- Virtual key display refreshes now guard against teleport events without a destination.
-- Reward lookup and removal now handle null IDs safely, and blank reward IDs are normalized to a safe fallback.
+- Admin commands and GUI tools for resetting player cooldowns, player open stats, player reward limit counters, and global reward limit counters.
+- Admin Tools statistics GUI for viewing a player's crate history, players who opened a selected crate, player totals, and the most-opened crates.
+- Crate duplication with `/abc duplicate <crate> <newName>`.
+- Crate template export/import with `/abc export <crate> [file]` and `/abc import <file> [newName]`.
+- Template files stored under `plugins/ABestCrates/templates`.
+- `config-version: 2` markers for generated configuration files.
+- bStats integration wiring, controlled by `metrics.enabled` and `metrics.plugin-id` in `config.yml`.
+- Insert Nickname lookup for player statistics and Give Keys GUI workflows.
+- Additional unit coverage for crate IDs, safe value clamping, reward settings, and zero-chance reward rolls.
 
-## Version
+## Changed
 
-- Project version bumped to `1.2.1`.
+- Chat prompts, command help, protected-crate, admin, and template messages now live in `messages.yml`.
+- Player open data now stores last-known player names for easier offline stat lookup.
+- The old unused `OpeningService` implementation is now a small runtime contract used by `AdvancedOpeningService`.
+- The Modrinth README file was renamed from `ModrithReadme.md` to `ModrinthReadme.md`.
 
 ## Requirements
 

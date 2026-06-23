@@ -1,2 +1,4 @@
+config-version: 2
+
 # Crate definitions are written here automatically by the in-game editor.
 crates: {}

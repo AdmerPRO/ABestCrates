@@ -1,3 +1,10 @@
+config-version: 2
+
+metrics:
+  enabled: true
+  # Set this to the bStats plugin id assigned to ABestCrates after registering the project.
+  plugin-id: 0
+
 # Opening sounds. Use Bukkit sound names; set enabled to false to disable a phase.
 sounds:
   opening:

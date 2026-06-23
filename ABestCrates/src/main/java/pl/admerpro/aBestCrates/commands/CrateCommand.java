@@ -1,7 +1,7 @@
 package pl.admerpro.aBestCrates.commands;
 
+import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,7 +21,7 @@ import pl.admerpro.aBestCrates.manager.KeyManager;
 import pl.admerpro.aBestCrates.model.Crate;
 import pl.admerpro.aBestCrates.service.MessageService;
 import pl.admerpro.aBestCrates.service.OpeningService;
-import pl.admerpro.aBestCrates.util.ColorUtil;
+import pl.admerpro.aBestCrates.service.PlayerDataService;
 
 public class CrateCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = List.of(
@@ -37,7 +37,13 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         "givecrate",
         "addkeys",
         "removekeys",
-        "forceopen"
+        "forceopen",
+        "duplicate",
+        "export",
+        "import",
+        "resetcooldowns",
+        "resetstats",
+        "resetlimits"
     );
 
     private final JavaPlugin plugin;
@@ -47,9 +53,11 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
     private final OpeningService openingService;
     private final GuiManager guiManager;
     private final MessageService messageService;
+    private final PlayerDataService playerDataService;
 
     public CrateCommand(JavaPlugin plugin, CrateManager crateManager, KeyManager keyManager, CrateLocationManager crateLocationManager,
-                        OpeningService openingService, GuiManager guiManager, MessageService messageService) {
+                        OpeningService openingService, GuiManager guiManager, MessageService messageService,
+                        PlayerDataService playerDataService) {
         this.plugin = plugin;
         this.crateManager = crateManager;
         this.keyManager = keyManager;
@@ -57,6 +65,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         this.openingService = openingService;
         this.guiManager = guiManager;
         this.messageService = messageService;
+        this.playerDataService = playerDataService;
     }
 
     @Override
@@ -81,6 +90,12 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             case "addkeys" -> addKeys(sender, args);
             case "removekeys" -> removeKeys(sender, args);
             case "forceopen" -> forceOpen(sender, args);
+            case "duplicate" -> duplicate(sender, args);
+            case "export" -> exportTemplate(sender, args);
+            case "import" -> importTemplate(sender, args);
+            case "resetcooldowns" -> resetCooldowns(sender, args);
+            case "resetstats" -> resetStats(sender, args);
+            case "resetlimits" -> resetLimits(sender, args);
             default -> sendHelp(sender);
         }
         return true;
@@ -96,8 +111,11 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2 && List.of("givekey", "givecrate", "addkeys", "removekeys", "forceopen").contains(subcommand)) {
             return filter(playerNames(), args[1]);
         }
-        if (args.length == 2 && List.of("delete", "spawncrate", "edit").contains(subcommand)) {
+        if (args.length == 2 && List.of("delete", "spawncrate", "edit", "duplicate", "export").contains(subcommand)) {
             return filter(crateNames(), args[1]);
+        }
+        if (args.length == 3 && subcommand.equals("duplicate")) {
+            return List.of("<newName>");
         }
         if (args.length == 2 && subcommand.equals("giveall")) {
             return filter(crateNames(), args[1]);
@@ -113,6 +131,25 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 4 && subcommand.equals("giveall")) {
             return filter(List.of("physical", "virtual"), args[3]);
+        }
+        if (args.length == 2 && List.of("resetcooldowns", "resetstats").contains(subcommand)) {
+            return filter(playerNames(), args[1]);
+        }
+        if (args.length == 3 && List.of("resetcooldowns", "resetstats").contains(subcommand)) {
+            List<String> values = new ArrayList<>(crateNames());
+            values.add("all");
+            return filter(values, args[2]);
+        }
+        if (args.length == 2 && subcommand.equals("resetlimits")) {
+            return filter(List.of("global", "player"), args[1]);
+        }
+        if (args.length == 3 && subcommand.equals("resetlimits")) {
+            if (args[1].equalsIgnoreCase("player")) {
+                return filter(playerNames(), args[2]);
+            }
+            List<String> values = new ArrayList<>(crateNames());
+            values.add("all");
+            return filter(values, args[2]);
         }
         return List.of();
     }
@@ -366,24 +403,129 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             () -> messageService.send(sender, "crate-missing", Map.of("%crate%", args[2])));
     }
 
+    private void duplicate(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.create")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 3) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates duplicate <crate> <newName>"));
+            return;
+        }
+        crateManager.duplicateCrate(args[1], args[2]).ifPresentOrElse(crate ->
+            messageService.send(sender, "crate-duplicated",
+                Map.of("%crate%", args[1], "%new%", crate.getId())),
+            () -> messageService.send(sender, "crate-duplicate-failed"));
+    }
+
+    private void exportTemplate(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.create")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates export <crate> [file]"));
+            return;
+        }
+        String fileName = args.length >= 3 ? args[2] : args[1];
+        File file = templateFile(fileName);
+        if (crateManager.exportTemplate(args[1], file)) {
+            messageService.send(sender, "template-exported",
+                Map.of("%crate%", args[1], "%file%", file.getName()));
+        } else {
+            messageService.send(sender, "template-export-failed", Map.of("%crate%", args[1]));
+        }
+    }
+
+    private void importTemplate(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.create")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates import <file> [newName]"));
+            return;
+        }
+        File file = templateFile(args[1]);
+        String newName = args.length >= 3 ? args[2] : null;
+        crateManager.importTemplate(file, newName).ifPresentOrElse(crate -> {
+            messageService.send(sender, "template-imported",
+                Map.of("%crate%", crate.getId(), "%file%", file.getName()));
+            if (sender instanceof Player player) {
+                guiManager.openEdit(player, crate);
+            }
+        }, () -> messageService.send(sender, "template-import-failed", Map.of("%file%", file.getName())));
+    }
+
+    private void resetCooldowns(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.admin")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates resetcooldowns <player> [crate|all]"));
+            return;
+        }
+        OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
+        String crate = args.length >= 3 ? args[2] : "all";
+        playerDataService.resetCooldowns(target.getUniqueId(), crate);
+        messageService.send(sender, "player-cooldowns-reset",
+            Map.of("%player%", playerName(target, args[1]), "%crate%", crate));
+    }
+
+    private void resetStats(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.admin")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%", "/abestcrates resetstats <player> [crate|all]"));
+            return;
+        }
+        OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
+        String crate = args.length >= 3 ? args[2] : "all";
+        playerDataService.resetStats(target.getUniqueId(), crate);
+        messageService.send(sender, "player-stats-reset",
+            Map.of("%player%", playerName(target, args[1]), "%crate%", crate));
+    }
+
+    private void resetLimits(CommandSender sender, String[] args) {
+        if (!has(sender, "abestcrates.admin")) {
+            messageService.send(sender, "no-permission");
+            return;
+        }
+        if (args.length < 2) {
+            messageService.send(sender, "usage", Map.of("%usage%",
+                "/abestcrates resetlimits global [crate|all] [reward|all] OR /abestcrates resetlimits player <player> [crate|all] [reward|all]"));
+            return;
+        }
+        if (args[1].equalsIgnoreCase("global")) {
+            String crate = args.length >= 3 ? args[2] : "all";
+            String reward = args.length >= 4 ? args[3] : "all";
+            playerDataService.resetGlobalRewardLimits(crate, reward);
+            messageService.send(sender, "global-limits-reset", Map.of("%crate%", crate, "%reward%", reward));
+            return;
+        }
+        if (args[1].equalsIgnoreCase("player")) {
+            if (args.length < 3) {
+                messageService.send(sender, "usage", Map.of("%usage%",
+                    "/abestcrates resetlimits player <player> [crate|all] [reward|all]"));
+                return;
+            }
+            OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
+            String crate = args.length >= 4 ? args[3] : "all";
+            String reward = args.length >= 5 ? args[4] : "all";
+            playerDataService.resetPlayerRewardLimits(target.getUniqueId(), crate, reward);
+            messageService.send(sender, "player-limits-reset",
+                Map.of("%player%", playerName(target, args[2]), "%crate%", crate, "%reward%", reward));
+            return;
+        }
+        messageService.send(sender, "usage", Map.of("%usage%",
+            "/abestcrates resetlimits global [crate|all] [reward|all] OR /abestcrates resetlimits player <player> [crate|all] [reward|all]"));
+    }
+
     private void sendHelp(CommandSender sender) {
-        Arrays.asList(
-            "&5ABestCrates &7commands:",
-            "&f/abestcrates &8- &7Open GUI",
-            "&f/abestcrates gui",
-            "&f/abestcrates create <name>",
-            "&f/abestcrates delete <name>",
-            "&f/abestcrates deletecrate",
-            "&f/abestcrates spawncrate <name>",
-            "&f/abestcrates edit <name>",
-            "&f/abestcrates givekey <player> <crate> <amount>",
-            "&f/abestcrates giveall <crate> <amount> [physical|virtual]",
-            "&f/abestcrates givecrate <player> <crate> <amount>",
-            "&f/abestcrates addkeys <player> <crate> <amount>",
-            "&f/abestcrates removekeys <player> <crate> <amount>",
-            "&f/abestcrates forceopen <player> <crate>",
-            "&f/abestcrates reload"
-        ).forEach(line -> sender.sendMessage(ColorUtil.component(line)));
+        messageService.sendList(sender, "help");
     }
 
     private boolean has(CommandSender sender, String permission) {
@@ -417,6 +559,18 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
             }
         }
         return result;
+    }
+
+    private File templateFile(String name) {
+        String safeName = name == null || name.isBlank() ? "crate" : name.trim().replaceAll("[^A-Za-z0-9._-]", "_");
+        if (!safeName.endsWith(".yml") && !safeName.endsWith(".yaml")) {
+            safeName += ".yml";
+        }
+        return new File(new File(plugin.getDataFolder(), "templates"), safeName);
+    }
+
+    private String playerName(OfflinePlayer player, String fallback) {
+        return player.getName() == null ? fallback : player.getName();
     }
 
     private void givePhysicalKeys(Player target, Crate crate, int amount) {
