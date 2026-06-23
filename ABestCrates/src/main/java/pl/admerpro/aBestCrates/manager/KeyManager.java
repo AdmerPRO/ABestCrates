@@ -91,6 +91,7 @@ public class KeyManager {
 
     public void save() {
         YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("config-version", pl.admerpro.aBestCrates.storage.CrateStorage.CURRENT_CONFIG_VERSION);
         for (Map.Entry<UUID, Map<String, Integer>> playerEntry : virtualKeys.entrySet()) {
             for (Map.Entry<String, Integer> crateEntry : playerEntry.getValue().entrySet()) {
                 configuration.set("players." + playerEntry.getKey() + ".crates." + crateEntry.getKey(), crateEntry.getValue());

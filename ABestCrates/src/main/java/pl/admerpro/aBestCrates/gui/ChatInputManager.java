@@ -11,21 +11,24 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import pl.admerpro.aBestCrates.service.MessageService;
 import pl.admerpro.aBestCrates.util.ColorUtil;
 
 public class ChatInputManager implements Listener {
     private final JavaPlugin plugin;
+    private final MessageService messageService;
     private final Map<UUID, PendingInput> pendingInputs = new ConcurrentHashMap<>();
 
-    public ChatInputManager(JavaPlugin plugin) {
+    public ChatInputManager(JavaPlugin plugin, MessageService messageService) {
         this.plugin = plugin;
+        this.messageService = messageService;
     }
 
     public void request(Player player, String prompt, Consumer<String> callback, Runnable cancelCallback) {
         pendingInputs.put(player.getUniqueId(), new PendingInput(callback, cancelCallback));
         player.closeInventory();
         player.sendMessage(ColorUtil.component(prompt));
-        player.sendMessage(ColorUtil.component("&7Type &ccancel &7to cancel."));
+        messageService.send(player, "chat-cancel-instruction");
     }
 
     @EventHandler
@@ -40,7 +43,7 @@ public class ChatInputManager implements Listener {
         String message = event.getMessage();
         if (message.equalsIgnoreCase("cancel")) {
             Bukkit.getScheduler().runTask(plugin, () -> {
-                event.getPlayer().sendMessage(ColorUtil.component("&cCancelled."));
+                messageService.send(event.getPlayer(), "chat-cancelled");
                 pendingInput.cancelCallback().run();
             });
             return;

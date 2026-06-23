@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
 import org.bukkit.Material;
@@ -23,6 +24,8 @@ import pl.admerpro.aBestCrates.model.ParticleEffectType;
 import pl.admerpro.aBestCrates.model.Reward;
 
 public class CrateStorage {
+    public static final int CURRENT_CONFIG_VERSION = 2;
+
     private final JavaPlugin plugin;
     private final File file;
     private final File keysFile;
@@ -91,54 +94,10 @@ public class CrateStorage {
     public void save(Collection<Crate> crates) {
         YamlConfiguration configuration = new YamlConfiguration();
         YamlConfiguration keysConfiguration = new YamlConfiguration();
+        configuration.set("config-version", CURRENT_CONFIG_VERSION);
+        keysConfiguration.set("config-version", CURRENT_CONFIG_VERSION);
         for (Crate crate : crates) {
-            String path = "crates." + crate.getId() + ".";
-            configuration.set(path + "display-name", crate.getDisplayName());
-            configuration.set(path + "color", crate.getColor());
-            configuration.set(path + "block", crate.getBlockMaterial().name());
-            configuration.set(path + "hologram", crate.getHologram());
-            configuration.set(path + "no-key-message", crate.getNoKeyMessage());
-            configuration.set(path + "animation", crate.getAnimationType().name());
-            configuration.set(path + "type", crate.getCrateType().name());
-            configuration.set(path + "particle-effect", crate.getParticleEffect().name());
-            configuration.set(path + "virtual-key-display", crate.isVirtualKeyDisplay());
-            configuration.set(path + "permission", crate.getPermission());
-            configuration.set(path + "open-cooldown-seconds", crate.getCooldownSeconds());
-            configuration.set(path + "open-cost", crate.getOpenCost());
-            configuration.set(path + "pushback", crate.isPushback());
-            configuration.set(path + "preview.title", crate.getPreviewTitle());
-            configuration.set(path + "opening.title", crate.getOpeningTitle());
-            configuration.set(path + "reward-rolls", crate.getRewardRolls());
-            configuration.set(path + "key-requirements", crate.getKeyRequirements().stream()
-                .map(requirement -> requirement.crateId() + ":" + requirement.amount()).toList());
-            crate.getMilestones().forEach((amount, rewardId) -> configuration.set(path + "milestones." + amount, rewardId));
-
-            KeyDefinition key = crate.getKeyDefinition();
-            String keyPath = "keys." + crate.getId() + ".";
-            keysConfiguration.set(keyPath + "material", key.getMaterial().name());
-            keysConfiguration.set(keyPath + "display-name", key.getDisplayName());
-            keysConfiguration.set(keyPath + "lore", key.getLore());
-            keysConfiguration.set(keyPath + "glow", key.isGlow());
-            keysConfiguration.set(keyPath + "custom-model-data", key.getCustomModelData());
-            keysConfiguration.set(keyPath + "template-item", key.getTemplateItem());
-
-            for (Reward reward : crate.getRewards()) {
-                String rewardPath = path + "rewards." + reward.getId() + ".";
-                configuration.set(rewardPath + "display-item", reward.getDisplayItem());
-                configuration.set(rewardPath + "item-reward", reward.getItemReward());
-                configuration.set(rewardPath + "item-rewards", reward.getItemRewards());
-                configuration.set(rewardPath + "commands", reward.getCommands());
-                configuration.set(rewardPath + "real-chance", reward.getRealChance());
-                configuration.set(rewardPath + "display-chance", reward.getDisplayChance());
-                configuration.set(rewardPath + "rarity", reward.getRarity());
-                configuration.set(rewardPath + "broadcast", reward.isBroadcast());
-                configuration.set(rewardPath + "fireworks", reward.isFireworks());
-                configuration.set(rewardPath + "weight", reward.getWeight());
-                configuration.set(rewardPath + "required-permissions", reward.getRequiredPermissions());
-                configuration.set(rewardPath + "blocked-permissions", reward.getBlockedPermissions());
-                configuration.set(rewardPath + "global-limit", reward.getGlobalLimit());
-                configuration.set(rewardPath + "player-limit", reward.getPlayerLimit());
-            }
+            writeCrate(configuration, keysConfiguration, crate);
         }
 
         try {
@@ -147,6 +106,63 @@ public class CrateStorage {
         } catch (IOException exception) {
             plugin.getLogger().log(Level.SEVERE, "Could not save crates.yml.", exception);
         }
+    }
+
+    public boolean exportTemplate(Crate crate, File templateFile) {
+        YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("config-version", CURRENT_CONFIG_VERSION);
+        configuration.set("template-crate", crate.getId());
+        writeCrate(configuration, configuration, crate);
+
+        File parent = templateFile.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            plugin.getLogger().warning("Could not create template directory: " + parent);
+            return false;
+        }
+
+        try {
+            configuration.save(templateFile);
+            return true;
+        } catch (IOException exception) {
+            plugin.getLogger().log(Level.SEVERE, "Could not export crate template.", exception);
+            return false;
+        }
+    }
+
+    public Optional<Crate> importTemplate(File templateFile, String newId) {
+        if (!templateFile.exists()) {
+            return Optional.empty();
+        }
+
+        YamlConfiguration configuration = YamlConfiguration.loadConfiguration(templateFile);
+        ConfigurationSection cratesSection = configuration.getConfigurationSection("crates");
+        if (cratesSection == null || cratesSection.getKeys(false).isEmpty()) {
+            return Optional.empty();
+        }
+
+        String storedId = configuration.getString("template-crate", "");
+        if (storedId.isBlank() || cratesSection.getConfigurationSection(storedId) == null) {
+            storedId = cratesSection.getKeys(false).iterator().next();
+        }
+        String crateId = newId == null || newId.isBlank() ? storedId : newId;
+        if (!Crate.isValidId(crateId)) {
+            return Optional.empty();
+        }
+
+        ConfigurationSection section = cratesSection.getConfigurationSection(storedId);
+        if (section == null) {
+            return Optional.empty();
+        }
+        Crate crate = readCrate(crateId, section,
+            configuration.getConfigurationSection("keys." + storedId));
+        if (!storedId.equalsIgnoreCase(crateId)) {
+            String sourceId = storedId;
+            crate.setKeyRequirements(crate.getKeyRequirements().stream()
+                .map(requirement -> requirement.crateId().equalsIgnoreCase(sourceId)
+                    ? new KeyRequirement(crateId, requirement.amount()) : requirement)
+                .toList());
+        }
+        return Optional.of(crate);
     }
 
     private KeyDefinition readKey(ConfigurationSection section) {
@@ -164,6 +180,83 @@ public class CrateStorage {
         }
         key.setTemplateItem(section.getItemStack("template-item"));
         return key;
+    }
+
+    private Crate readCrate(String crateId, ConfigurationSection section, ConfigurationSection keySection) {
+        Crate crate = new Crate(crateId);
+        crate.setDisplayName(section.getString("display-name", crate.getDisplayName()));
+        crate.setColor(section.getString("color", crate.getColor()));
+        crate.setBlockMaterial(readMaterial(section.getString("block"), Material.CHEST));
+        crate.setHologram(section.getStringList("hologram"));
+        crate.setNoKeyMessage(section.getString("no-key-message", crate.getNoKeyMessage()));
+        crate.setAnimationType(readEnum(AnimationType.class, section.getString("animation"), AnimationType.INSTANT));
+        crate.setCrateType(readEnum(CrateType.class, section.getString("type"), CrateType.GAMBLE));
+        crate.setParticleEffect(readEnum(ParticleEffectType.class, section.getString("particle-effect"), ParticleEffectType.NONE));
+        crate.setVirtualKeyDisplay(section.getBoolean("virtual-key-display", true));
+        crate.setPermission(section.getString("permission", ""));
+        crate.setCooldownSeconds(section.getLong("open-cooldown-seconds", 0L));
+        crate.setOpenCost(section.getDouble("open-cost", 0.0D));
+        crate.setPushback(section.getBoolean("pushback", false));
+        crate.setPreviewTitle(section.getString("preview.title", crate.getPreviewTitle()));
+        crate.setOpeningTitle(section.getString("opening.title", crate.getOpeningTitle()));
+        crate.setRewardRolls(section.getInt("reward-rolls", 1));
+        if (section.contains("key-requirements")) {
+            crate.setKeyRequirements(readKeyRequirements(section.getStringList("key-requirements")));
+        }
+        crate.setMilestones(readMilestones(section.getConfigurationSection("milestones")));
+        crate.setKeyDefinition(readKey(keySection == null ? section.getConfigurationSection("key") : keySection));
+        readRewards(section.getConfigurationSection("rewards"), crate);
+        return crate;
+    }
+
+    private void writeCrate(YamlConfiguration configuration, YamlConfiguration keysConfiguration, Crate crate) {
+        String path = "crates." + crate.getId() + ".";
+        configuration.set(path + "display-name", crate.getDisplayName());
+        configuration.set(path + "color", crate.getColor());
+        configuration.set(path + "block", crate.getBlockMaterial().name());
+        configuration.set(path + "hologram", crate.getHologram());
+        configuration.set(path + "no-key-message", crate.getNoKeyMessage());
+        configuration.set(path + "animation", crate.getAnimationType().name());
+        configuration.set(path + "type", crate.getCrateType().name());
+        configuration.set(path + "particle-effect", crate.getParticleEffect().name());
+        configuration.set(path + "virtual-key-display", crate.isVirtualKeyDisplay());
+        configuration.set(path + "permission", crate.getPermission());
+        configuration.set(path + "open-cooldown-seconds", crate.getCooldownSeconds());
+        configuration.set(path + "open-cost", crate.getOpenCost());
+        configuration.set(path + "pushback", crate.isPushback());
+        configuration.set(path + "preview.title", crate.getPreviewTitle());
+        configuration.set(path + "opening.title", crate.getOpeningTitle());
+        configuration.set(path + "reward-rolls", crate.getRewardRolls());
+        configuration.set(path + "key-requirements", crate.getKeyRequirements().stream()
+            .map(requirement -> requirement.crateId() + ":" + requirement.amount()).toList());
+        crate.getMilestones().forEach((amount, rewardId) -> configuration.set(path + "milestones." + amount, rewardId));
+
+        KeyDefinition key = crate.getKeyDefinition();
+        String keyPath = "keys." + crate.getId() + ".";
+        keysConfiguration.set(keyPath + "material", key.getMaterial().name());
+        keysConfiguration.set(keyPath + "display-name", key.getDisplayName());
+        keysConfiguration.set(keyPath + "lore", key.getLore());
+        keysConfiguration.set(keyPath + "glow", key.isGlow());
+        keysConfiguration.set(keyPath + "custom-model-data", key.getCustomModelData());
+        keysConfiguration.set(keyPath + "template-item", key.getTemplateItem());
+
+        for (Reward reward : crate.getRewards()) {
+            String rewardPath = path + "rewards." + reward.getId() + ".";
+            configuration.set(rewardPath + "display-item", reward.getDisplayItem());
+            configuration.set(rewardPath + "item-reward", reward.getItemReward());
+            configuration.set(rewardPath + "item-rewards", reward.getItemRewards());
+            configuration.set(rewardPath + "commands", reward.getCommands());
+            configuration.set(rewardPath + "real-chance", reward.getRealChance());
+            configuration.set(rewardPath + "display-chance", reward.getDisplayChance());
+            configuration.set(rewardPath + "rarity", reward.getRarity());
+            configuration.set(rewardPath + "broadcast", reward.isBroadcast());
+            configuration.set(rewardPath + "fireworks", reward.isFireworks());
+            configuration.set(rewardPath + "weight", reward.getWeight());
+            configuration.set(rewardPath + "required-permissions", reward.getRequiredPermissions());
+            configuration.set(rewardPath + "blocked-permissions", reward.getBlockedPermissions());
+            configuration.set(rewardPath + "global-limit", reward.getGlobalLimit());
+            configuration.set(rewardPath + "player-limit", reward.getPlayerLimit());
+        }
     }
 
     private void readRewards(ConfigurationSection section, Crate crate) {

@@ -29,6 +29,7 @@ ABestCrates is a modern, GUI-first crates plugin for Paper servers. It lets serv
 - Required and blocked permissions per reward
 - PlaceholderAPI placeholders
 - Custom messages
+- Admin statistics GUI for player histories, crate opener lists, player totals, and most-opened crates
 - Tab completion for commands, players, crates, and key amounts
 
 ## Crate Editing
@@ -106,6 +107,13 @@ Admin commands:
 /abc addkeys <player> <crate> <amount>
 /abc removekeys <player> <crate> <amount>
 /abc forceopen <player> <crate>
+/abc duplicate <crate> <newName>
+/abc export <crate> [file]
+/abc import <file> [newName]
+/abc resetcooldowns <player> [crate|all]
+/abc resetstats <player> [crate|all]
+/abc resetlimits global [crate|all] [reward|all]
+/abc resetlimits player <player> [crate|all] [reward|all]
 ```
 
 ## Permissions
@@ -128,7 +136,11 @@ Players need `abestcrates.use` to open crates.
 - Left-click a placed crate to open it
 - Shift-left-click a placed crate to open all matching keys
 
-The **Give Keys To** menu performs the entire physical/virtual key workflow without a command: select the key type, crate, online player, and enter the amount in chat.
+The **Give Keys To** menu performs the entire physical/virtual key workflow without a command: select the key type, crate, player head or Insert Nickname, and enter the amount in chat. Physical keys require an online player; virtual keys can be assigned to offline players by nickname.
+
+The **Admin Tools** menu can reset player cooldowns, player open stats, player/global reward limit counters, duplicate crates, import/export crate templates, and inspect crate statistics. Statistics include a player's crate history, all players who opened a selected crate, total opens per player, and the most-opened crates.
+
+Crate templates are stored in `plugins/ABestCrates/templates` and can be moved between servers running the same branch.
 
 ## Integrations
 
@@ -138,7 +150,7 @@ The **Give Keys To** menu performs the entire physical/virtual key workflow with
 
 ## Compatibility
 
-ABestCrates requires Java 21 and Paper 1.21.x or 1.20.x.
+ABestCrates requires Java 21 and Paper 1.21.x. Paper 1.20.x support is maintained on the separate `1.20` branch.
 
 ## License
 

@@ -18,7 +18,7 @@ import pl.admerpro.aBestCrates.manager.KeyManager;
 import pl.admerpro.aBestCrates.manager.CrateManager;
 import pl.admerpro.aBestCrates.model.Crate;
 import pl.admerpro.aBestCrates.service.AdvancedOpeningService;
-import pl.admerpro.aBestCrates.util.ColorUtil;
+import pl.admerpro.aBestCrates.service.MessageService;
 
 public class CrateListener implements Listener {
     private final CrateLocationManager crateLocationManager;
@@ -26,14 +26,17 @@ public class CrateListener implements Listener {
     private final GuiManager guiManager;
     private final KeyManager keyManager;
     private final CrateManager crateManager;
+    private final MessageService messageService;
 
     public CrateListener(CrateLocationManager crateLocationManager, AdvancedOpeningService openingService,
-                         GuiManager guiManager, KeyManager keyManager, CrateManager crateManager) {
+                         GuiManager guiManager, KeyManager keyManager, CrateManager crateManager,
+                         MessageService messageService) {
         this.crateLocationManager = crateLocationManager;
         this.openingService = openingService;
         this.guiManager = guiManager;
         this.keyManager = keyManager;
         this.crateManager = crateManager;
+        this.messageService = messageService;
     }
 
     @EventHandler
@@ -78,7 +81,7 @@ public class CrateListener implements Listener {
         }
 
         event.setCancelled(true);
-        event.getPlayer().sendMessage(ColorUtil.component("&cThis crate is protected."));
+        messageService.send(event.getPlayer(), "crate-protected");
     }
 
     @EventHandler

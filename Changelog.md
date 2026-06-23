@@ -2,6 +2,31 @@
 
 All notable changes to the ABestCrates project are documented in this file.
 
+## [1.2.2] - 2026-06-23
+
+### Added
+
+- Added config/version markers to generated configuration files.
+- Added bStats integration wiring with configurable plugin ID.
+- Added admin reset commands and GUI tools for cooldowns, player stats, and reward limit counters.
+- Added crate duplication plus import/export template commands and GUI tools.
+- Added an Admin Tools statistics GUI for player crate history, crate opener lists, player totals, and most-opened crates.
+- Added an Insert Nickname option to player stat lookup and the Give Keys GUI.
+- Added more unit coverage around crate IDs, clamped settings, reward item bundles, and zero-chance rolls.
+
+### Changed
+
+- Replaced the old unused `OpeningService` implementation with a small runtime contract used by `AdvancedOpeningService`.
+- Moved chat prompts, command help, protected-crate, and admin/template messages into `messages.yml`.
+- Player open data now stores last-known player names for easier offline stat lookup.
+- Renamed `ModrithReadme.md` to `ModrinthReadme.md`.
+- Bumped the 1.21.x branch plugin version to `1.2.2`.
+
+### Verification
+
+- Built the project using the local Java 21 and Maven 3.9.9 toolchain.
+- Verified `14` unit tests pass.
+
 ## [1.2.1] - 2026-06-23
 
 ### Fixed
@@ -107,7 +132,7 @@ All notable changes to the ABestCrates project are documented in this file.
 
 ### Documentation
 
-- Expanded `README.md` and `ModrithReadme.md` with the new features, integrations, commands, placeholders, and data files.
+- Expanded `README.md` and `ModrinthReadme.md` with the new features, integrations, commands, placeholders, and data files.
 - Bumped the project and output JAR version from `1.0.0` to `1.1.0`.
 
 ### Verification

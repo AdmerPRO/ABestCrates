@@ -25,6 +25,8 @@ ABestCrates is a Paper plugin for configurable Minecraft crates managed mostly t
 - PlaceholderAPI expansion and custom item metadata support
 - Command-free **Give Keys To** GUI workflow
 - Placed crate removal with `/abc deletecrate`
+- Admin tools for resets, player/crate statistics, and reward limit counters
+- Crate duplication and import/export templates
 
 ## Requirements
 
@@ -44,12 +46,12 @@ mvn -f ABestCrates/pom.xml -q -DskipTests package
 The release jar is generated at:
 
 ```text
-ABestCrates/target/ABestCrates-1.2.1.jar
+ABestCrates/target/ABestCrates-1.2.2.jar
 ```
 
 ## Installation
 
-1. Put `ABestCrates-1.2.1.jar` in your server `plugins` folder.
+1. Put `ABestCrates-1.2.2.jar` in your server `plugins` folder.
 2. Start or restart the Paper server.
 3. Use `/abc gui` to open the main GUI.
 
@@ -69,6 +71,13 @@ ABestCrates/target/ABestCrates-1.2.1.jar
 /abc addkeys <player> <crate> <amount>
 /abc removekeys <player> <crate> <amount>
 /abc forceopen <player> <crate>
+/abc duplicate <crate> <newName>
+/abc export <crate> [file]
+/abc import <file> [newName]
+/abc resetcooldowns <player> [crate|all]
+/abc resetstats <player> [crate|all]
+/abc resetlimits global [crate|all] [reward|all]
+/abc resetlimits player <player> [crate|all] [reward|all]
 ```
 
 Aliases:
@@ -103,9 +112,16 @@ plugins/ABestCrates/virtual-keys.yml
 plugins/ABestCrates/locations.yml
 plugins/ABestCrates/player-data.yml
 plugins/ABestCrates/reward-rolls.log
+plugins/ABestCrates/templates/
 ```
 
+The Admin Tools statistics menu can show a player's crate history, players who opened a selected crate, total opens per player, and the most-opened crates. Player lookup supports selecting stored player heads or typing a nickname in chat.
+
+The Give Keys GUI supports selecting an online player head or using Insert Nickname. Physical keys require the target to be online; virtual keys can be assigned to offline players.
+
 PlaceholderAPI exposes `%abestcrates_virtual_<crate>%`, `%abestcrates_physical_<crate>%`, `%abestcrates_total_<crate>%`, and `%abestcrates_opened_<crate>%`.
+
+bStats metrics can be enabled after registering the project and setting `metrics.plugin-id` in `config.yml`.
 
 ## License
 

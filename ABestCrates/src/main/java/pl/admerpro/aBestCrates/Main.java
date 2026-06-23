@@ -1,5 +1,6 @@
 package pl.admerpro.aBestCrates;
 
+import org.bstats.bukkit.Metrics;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.commands.CrateCommand;
 import pl.admerpro.aBestCrates.gui.ChatInputManager;
@@ -28,10 +29,18 @@ public final class Main extends JavaPlugin {
     private MessageService messageService;
     private PlayerDataService playerDataService;
     private CrateVisualService visualService;
+    private Metrics metrics;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        boolean configChanged = !getConfig().contains("config-version")
+            || !getConfig().contains("metrics.enabled")
+            || !getConfig().contains("metrics.plugin-id");
+        getConfig().options().copyDefaults(true);
+        if (configChanged) {
+            saveConfig();
+        }
         saveResource("crates.yml", false);
         saveResource("messages.yml", false);
         saveResource("keys.yml", false);
@@ -45,8 +54,8 @@ public final class Main extends JavaPlugin {
         PlaceholderService placeholderService = new PlaceholderService(this, keyManager);
         openingService = new AdvancedOpeningService(this, keyManager, messageService, playerDataService,
             new EconomyService(this), placeholderService, customItems);
-        chatInputManager = new ChatInputManager(this);
-        guiManager = new GuiManager(this, crateManager, keyManager, crateLocationManager, chatInputManager, messageService, openingService);
+        chatInputManager = new ChatInputManager(this, messageService);
+        guiManager = new GuiManager(this, crateManager, keyManager, crateLocationManager, chatInputManager, messageService, openingService, playerDataService);
         visualService = new CrateVisualService(this, crateLocationManager, keyManager);
         crateLocationManager.setVisualRefresh(visualService::refreshVirtualDisplays);
         keyManager.setChangeListener(visualService::refreshVirtualDisplays);
@@ -56,11 +65,12 @@ public final class Main extends JavaPlugin {
         crateLocationManager.load();
         crateLocationManager.refreshHolograms();
         visualService.start();
+        startMetrics();
         if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             new ABestCratesExpansion(this, crateManager, keyManager, playerDataService).register();
         }
 
-        CrateCommand command = new CrateCommand(this, crateManager, keyManager, crateLocationManager, openingService, guiManager, messageService);
+        CrateCommand command = new CrateCommand(this, crateManager, keyManager, crateLocationManager, openingService, guiManager, messageService, playerDataService);
         if (getCommand("abestcrates") != null) {
             getCommand("abestcrates").setExecutor(command);
             getCommand("abestcrates").setTabCompleter(command);
@@ -70,7 +80,7 @@ public final class Main extends JavaPlugin {
         getServer().getPluginManager().registerEvents(guiManager, this);
         getServer().getPluginManager().registerEvents(openingService, this);
         getServer().getPluginManager().registerEvents(visualService, this);
-        getServer().getPluginManager().registerEvents(new CrateListener(crateLocationManager, openingService, guiManager, keyManager, crateManager), this);
+        getServer().getPluginManager().registerEvents(new CrateListener(crateLocationManager, openingService, guiManager, keyManager, crateManager, messageService), this);
 
         getLogger().info("ABestCrates enabled.");
     }
@@ -120,5 +130,17 @@ public final class Main extends JavaPlugin {
 
     public MessageService getMessageService() {
         return messageService;
+    }
+
+    private void startMetrics() {
+        if (!getConfig().getBoolean("metrics.enabled", true)) {
+            return;
+        }
+        int pluginId = getConfig().getInt("metrics.plugin-id", 0);
+        if (pluginId <= 0) {
+            getLogger().info("bStats metrics are enabled, but metrics.plugin-id is not configured yet.");
+            return;
+        }
+        metrics = new Metrics(this, pluginId);
     }
 }
