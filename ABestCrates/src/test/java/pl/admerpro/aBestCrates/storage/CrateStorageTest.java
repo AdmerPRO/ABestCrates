@@ -7,7 +7,7 @@ import org.junit.Test;
 
 public class CrateStorageTest {
     @Test
-    public void convertsModernItemStackFieldsToTheLegacyPaperFormat() {
+    public void convertsModernItemStackFieldsToBukkitMaterialFormat() {
         String serialized = """
             crates:
               example:
@@ -33,6 +33,23 @@ public class CrateStorageTest {
         assertFalse(normalized.contains("schema_version:"));
         assertTrue("Nested metadata must not be rewritten as an item material",
             normalized.contains("id: minecraft:custom_name"));
+    }
+
+    @Test
+    public void convertsNamespacedTypeToBukkitMaterialFormat() {
+        String serialized = """
+            item:
+              ==: org.bukkit.inventory.ItemStack
+              type: minecraft:tripwire_hook
+              count: 2
+            """;
+
+        String normalized = CrateStorage.normalizeSerializedItemStacks(serialized);
+
+        assertTrue(normalized.contains("type: TRIPWIRE_HOOK"));
+        assertTrue(normalized.contains("amount: 2"));
+        assertFalse(normalized.contains("type: minecraft:tripwire_hook"));
+        assertFalse(normalized.contains("count: 2"));
     }
 
     @Test

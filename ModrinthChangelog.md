@@ -21,6 +21,11 @@ Version 1.2.2 adds admin maintenance tools, crate templates, config versioning, 
 - The old unused `OpeningService` implementation is now a small runtime contract used by `AdvancedOpeningService`.
 - The Modrinth README file was renamed from `ModrithReadme.md` to `ModrinthReadme.md`.
 
+## Fixed
+
+- Modern Paper serialized `ItemStack` fields in crate files are normalized before loading to avoid `Material cannot be null` startup errors.
+- Existing bundled config files are no longer recopied on startup, removing noisy already-exists warnings.
+
 ## Requirements
 
 - Paper 1.20.1-1.20.6.

@@ -32,7 +32,7 @@ import pl.admerpro.aBestCrates.model.Reward;
 public class CrateStorage {
     public static final int CURRENT_CONFIG_VERSION = 2;
     private static final Pattern ITEM_STACK_START_PATTERN = Pattern.compile("^(\\s*)==:\\s*org\\.bukkit\\.inventory\\.ItemStack\\s*$");
-    private static final Pattern NAMESPACED_ITEM_ID_PATTERN = Pattern.compile("^(\\s*)id:\\s*minecraft:([a-z0-9_]+)\\s*$");
+    private static final Pattern NAMESPACED_ITEM_MATERIAL_PATTERN = Pattern.compile("^(\\s*)(id|type):\\s*minecraft:([a-z0-9_]+)\\s*$");
     private static final Pattern ITEM_COUNT_PATTERN = Pattern.compile("^(\\s*)count:\\s*(\\d+)\\s*$");
     private static final Pattern ITEM_VERSION_PATTERN = Pattern.compile("^\\s*(DataVersion|schema_version):\\s*.*$");
 
@@ -144,7 +144,7 @@ public class CrateStorage {
             return Optional.empty();
         }
 
-        YamlConfiguration configuration = YamlConfiguration.loadConfiguration(templateFile);
+        YamlConfiguration configuration = loadConfiguration(templateFile);
         ConfigurationSection cratesSection = configuration.getConfigurationSection("crates");
         if (cratesSection == null || cratesSection.getKeys(false).isEmpty()) {
             return Optional.empty();
@@ -369,8 +369,8 @@ public class CrateStorage {
         String[] lines = content.split("\\R", -1);
         int itemStackIndent = -1;
         boolean appendedLine = false;
-        for (int index = 0; index < lines.length; index++) {
-            String line = lines[index];
+        for (String originalLine : lines) {
+            String line = originalLine;
             if (itemStackIndent >= 0 && !line.isBlank() && indentation(line) < itemStackIndent) {
                 itemStackIndent = -1;
             }
@@ -401,9 +401,9 @@ public class CrateStorage {
             return null;
         }
 
-        Matcher idMatcher = NAMESPACED_ITEM_ID_PATTERN.matcher(line);
-        if (idMatcher.matches()) {
-            return idMatcher.group(1) + "type: " + readSerializedMaterialName(idMatcher.group(2));
+        Matcher materialMatcher = NAMESPACED_ITEM_MATERIAL_PATTERN.matcher(line);
+        if (materialMatcher.matches()) {
+            return materialMatcher.group(1) + "type: " + readSerializedMaterialName(materialMatcher.group(3));
         }
 
         Matcher countMatcher = ITEM_COUNT_PATTERN.matcher(line);

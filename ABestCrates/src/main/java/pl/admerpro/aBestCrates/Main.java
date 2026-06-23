@@ -1,5 +1,6 @@
 package pl.admerpro.aBestCrates;
 
+import java.io.File;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.admerpro.aBestCrates.commands.CrateCommand;
@@ -41,9 +42,9 @@ public final class Main extends JavaPlugin {
         if (configChanged) {
             saveConfig();
         }
-        saveResource("crates.yml", false);
-        saveResource("messages.yml", false);
-        saveResource("keys.yml", false);
+        saveBundledResource("crates.yml");
+        saveBundledResource("messages.yml");
+        saveBundledResource("keys.yml");
 
         messageService = new MessageService(this);
         crateManager = new CrateManager(this);
@@ -142,5 +143,11 @@ public final class Main extends JavaPlugin {
             return;
         }
         metrics = new Metrics(this, pluginId);
+    }
+
+    private void saveBundledResource(String resourceName) {
+        if (!new File(getDataFolder(), resourceName).exists()) {
+            saveResource(resourceName, false);
+        }
     }
 }
