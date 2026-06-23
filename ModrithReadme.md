@@ -117,6 +117,7 @@ abestcrates.open
 abestcrates.create
 abestcrates.givekey
 abestcrates.reload
+abestcrates.crateitem
 ```
 
 Players need `abestcrates.use` to open crates.

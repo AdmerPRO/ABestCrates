@@ -2,6 +2,28 @@
 
 All notable changes to the ABestCrates project are documented in this file.
 
+## [1.2.1] - 2026-06-23
+
+### Fixed
+
+- Fixed reward rolling so rewards with `0.0` real/effective chance are not selected at the exact random boundary.
+- Refreshed owner-only virtual key displays after virtual key balances are migrated during crate renames.
+- Removed empty virtual-key entries after the last key is consumed, removed, or loaded from disk.
+- Avoided unnecessary virtual-key saves when crate rename/removal does not change stored balances.
+- Cleared stale Vault economy hooks when Vault is unavailable, disabled, or incompatible.
+- Guarded PlaceholderAPI expansion requests against empty placeholder parameters.
+- Guarded virtual key display refreshes against teleport events without a destination.
+- Made reward lookup/removal null-safe and normalized blank reward IDs to a safe fallback.
+- Updated stale README/Modrinth README version and permission references.
+
+### Changed
+
+- Bumped the 1.21.x branch plugin version to `1.2.1`.
+
+### Tests
+
+- Added regression coverage for zero-chance reward selection and null/blank reward IDs.
+
 ## [1.2.0] - 2026-06-22
 
 ### Added

@@ -78,9 +78,14 @@ public class KeyManager {
 
             Map<String, Integer> playerKeys = new HashMap<>();
             for (String crateId : cratesSection.getKeys(false)) {
-                playerKeys.put(key(crateId), Math.max(0, cratesSection.getInt(crateId)));
+                int amount = Math.max(0, cratesSection.getInt(crateId));
+                if (amount > 0) {
+                    playerKeys.put(key(crateId), amount);
+                }
             }
-            virtualKeys.put(uuid, playerKeys);
+            if (!playerKeys.isEmpty()) {
+                virtualKeys.put(uuid, playerKeys);
+            }
         }
     }
 
@@ -319,22 +324,34 @@ public class KeyManager {
     public void renameVirtualCrate(String oldId, String newId) {
         String oldKey = key(oldId);
         String newKey = key(newId);
+        if (oldKey.equals(newKey)) {
+            return;
+        }
+        boolean changed = false;
         for (Map<String, Integer> playerKeys : virtualKeys.values()) {
             Integer amount = playerKeys.remove(oldKey);
             if (amount != null) {
                 playerKeys.merge(newKey, amount, Integer::sum);
+                changed = true;
             }
         }
-        save();
+        if (changed) {
+            save();
+            changeListener.run();
+        }
     }
 
     public void removeVirtualCrate(String crateId) {
         String normalizedCrate = key(crateId);
+        boolean changed = false;
         for (Map<String, Integer> playerKeys : virtualKeys.values()) {
-            playerKeys.remove(normalizedCrate);
+            changed |= playerKeys.remove(normalizedCrate) != null;
         }
-        save();
-        changeListener.run();
+        virtualKeys.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        if (changed) {
+            save();
+            changeListener.run();
+        }
     }
 
     public void setChangeListener(Runnable changeListener) {
@@ -410,6 +427,13 @@ public class KeyManager {
         Map<String, Integer> playerKeys = virtualKeys.computeIfAbsent(uuid, ignored -> new HashMap<>());
         String normalizedCrate = key(crateId);
         int remaining = Math.max(0, playerKeys.getOrDefault(normalizedCrate, 0) - amount);
+        if (remaining <= 0) {
+            playerKeys.remove(normalizedCrate);
+            if (playerKeys.isEmpty()) {
+                virtualKeys.remove(uuid);
+            }
+            return;
+        }
         playerKeys.put(normalizedCrate, remaining);
     }
 

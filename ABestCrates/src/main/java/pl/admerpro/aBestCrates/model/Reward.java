@@ -22,7 +22,7 @@ public class Reward {
     private int playerLimit;
 
     public Reward(String id) {
-        this.id = id;
+        this.id = id == null || id.isBlank() ? "reward" : id.trim();
     }
 
     public String getId() {
